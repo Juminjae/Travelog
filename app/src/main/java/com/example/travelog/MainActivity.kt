@@ -7,10 +7,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.graphics.Color
 import com.example.travelog.ui.theme.TravelogTheme
 
 class MainActivity : ComponentActivity() {
@@ -19,29 +19,39 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             TravelogTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+
+                // ✅ 초기값이 Home 이라서 절대 null 아님
+                var selectedItem by remember {
+                    mutableStateOf<BottomNavItem>(BottomNavItem.Home)
+                }
+
+                Scaffold(
+                    containerColor = Color.White,
+                    bottomBar = {
+                        BottomBar(
+                            selectedItem = selectedItem,
+                            onItemSelected = { item ->
+                                selectedItem = item
+                            }
+                        )
+                    }
+                ) { innerPadding ->
+                    Surface(
+                        modifier = Modifier
+                            .padding(innerPadding)
+                            .fillMaxSize(),
+                        color = Color.White
+                    ) {
+                        when (selectedItem) {
+                            BottomNavItem.Home -> HomeScreen()
+                            BottomNavItem.Map -> MapScreen()
+                            BottomNavItem.Archive -> ArchiveScreen()
+                            BottomNavItem.Schedule -> ScheduleScreen()
+                            BottomNavItem.MyPage -> MyPageScreen()
+                        }
+                    }
                 }
             }
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    TravelogTheme {
-        Greeting("Android")
     }
 }
