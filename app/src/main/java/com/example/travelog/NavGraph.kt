@@ -17,7 +17,7 @@ fun MainNavHost(
         modifier = modifier
     ) {
         composable(BottomNavItem.Home.route) {
-            HomeScreen()
+            HomeScreen(navController = navController)
         }
         composable(BottomNavItem.Map.route) {
             MapScreen()
@@ -30,6 +30,9 @@ fun MainNavHost(
         }
         composable(BottomNavItem.MyPage.route) {
             MyPageScreen()
+        }
+        composable("weather") {
+            WeatherScreen()
         }
     }
 }

@@ -8,30 +8,34 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import com.example.travelog.ui.theme.TravelogTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
         setContent {
             TravelogTheme {
 
-                // ✅ 초기값이 Home 이라서 절대 null 아님
-                var selectedItem by remember {
-                    mutableStateOf<BottomNavItem>(BottomNavItem.Home)
-                }
+                val navController = rememberNavController()
+                val navBackStackEntry by navController.currentBackStackEntryAsState()
+                val currentRoute = navBackStackEntry?.destination?.route
 
                 Scaffold(
                     containerColor = Color.White,
                     bottomBar = {
                         BottomBar(
-                            selectedItem = selectedItem,
+                            currentRoute = currentRoute,           // ✅ 여기!
                             onItemSelected = { item ->
-                                selectedItem = item
+                                navController.navigate(item.route) {
+                                    launchSingleTop = true
+                                }
                             }
                         )
                     }
@@ -42,13 +46,10 @@ class MainActivity : ComponentActivity() {
                             .fillMaxSize(),
                         color = Color.White
                     ) {
-                        when (selectedItem) {
-                            BottomNavItem.Home -> HomeScreen()
-                            BottomNavItem.Map -> MapScreen()
-                            BottomNavItem.Archive -> ArchiveScreen()
-                            BottomNavItem.Schedule -> ScheduleScreen()
-                            BottomNavItem.MyPage -> MyPageScreen()
-                        }
+                        MainNavHost(
+                            navController = navController,
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
                 }
             }
