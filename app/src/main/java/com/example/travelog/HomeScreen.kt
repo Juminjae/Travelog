@@ -19,8 +19,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.compose.material.icons.rounded.ArrowForwardIos
-import androidx.compose.material.icons.rounded.Bookmark
-import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.Image
@@ -30,10 +28,9 @@ import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 
-import com.example.travelog.TodaySentence
-import com.example.travelog.StudyLanguage
+import com.example.travelog.model.TodaySentence
+import com.example.travelog.model.StudyLanguage
 import com.example.travelog.data.loadSentencesFromFirestore
-import kotlin.math.round
 
 @Composable
 fun HomeScreen(
@@ -43,17 +40,18 @@ fun HomeScreen(
     var query by remember { mutableStateOf("") }
 
     Column(
+        // Background
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)    // 전체 배경화면 색상: 흰색
+            .background(Color.White)    // 배경 색상: 흰색
             .padding(horizontal = 20.dp, vertical = 10.dp)
     ) {
-
+        // Search bar + Bookmark + Notification icons
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            // 🔍 검색창
+            // Search bar
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
@@ -80,11 +78,12 @@ fun HomeScreen(
                 )
             )
 
+            // space between Search bar & Bookmark Button
             Spacer(modifier = Modifier.width(10.dp))
 
             // Bookmark Button
             Icon(
-                imageVector = Icons.Rounded.Bookmark,
+                painter = painterResource(id = R.drawable.icon_bookmark),
                 contentDescription = "Bookmark Icon",
                 tint = Color.Black,
                 modifier = Modifier
@@ -99,7 +98,7 @@ fun HomeScreen(
 
             // Notifications Button
             Icon(
-                imageVector = Icons.Rounded.Notifications,
+                painter = painterResource(id = R.drawable.icon_notification),
                 contentDescription = "Alert Icon",
                 tint = Color.Black,
                 modifier = Modifier
@@ -127,12 +126,24 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ){
-                    Text(
-                        text = "여기에\n디데이 넣음",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
+                    Column(
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .width(100.dp)
+                    ){
+                        Text(
+                            text = "출국까지",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.Black
+                        )
+                        Text(
+                            text = "D-74",
+                            fontSize = 40.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.Black
+                        )
+                    }
 
                     Spacer(modifier = Modifier.width(30.dp))
 
@@ -236,7 +247,7 @@ fun HomeScreen(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(3.dp))
+                Spacer(modifier = Modifier.height(1.dp))
 
                 ChecklistHintCard(
                     text = "빠진 짐은 없는지 확인해 볼까요?",
@@ -309,12 +320,13 @@ fun WeatherPreviewCard(
             contentScale = ContentScale.Crop
         )
 
-        Row(
+        Column(
             modifier = Modifier
-                .fillMaxSize()
+                .align(Alignment.BottomEnd)
+                .wrapContentSize()
                 .padding(end = 20.dp, bottom = 16.dp),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.Bottom
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             Icon(
                 imageVector = Icons.Filled.WbSunny,
@@ -327,7 +339,7 @@ fun WeatherPreviewCard(
 
             Text(
                 text = temperature,
-                fontSize = 20.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
                 color = Color.Black
             )
@@ -436,20 +448,20 @@ fun TodaySentenceCard(
             Column {
                 Text(
                     text = sentence.foreign,
-                    fontSize = 15.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
                     text = sentence.romanization,
-                    fontSize = 14.sp,
+                    fontSize = 12.sp,
                     color = Color.DarkGray
                 )
             }
 
             Text(
                 text = sentence.translation,
-                fontSize = 15.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Medium
             )
         }
