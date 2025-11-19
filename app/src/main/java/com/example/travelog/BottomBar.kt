@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
@@ -21,17 +20,21 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun BottomBar(
-    selectedItem: BottomNavItem,
-    onItemSelected: (BottomNavItem) -> Unit
+    currentRoute: String?,                     // ✅ 현재 NavHost의 route
+    onItemSelected: (BottomNavItem) -> Unit   // ✅ 눌렀을 때 이동 처리
 ) {
-    // ✅ 컴패니언의 items 안 쓰고, 여기서 직접 명시
     val items = listOf(
         BottomNavItem.Home,
         BottomNavItem.Map,
-        BottomNavItem.Archive,
         BottomNavItem.Schedule,
+        BottomNavItem.Archive,
         BottomNavItem.MyPage
     )
+
+    val effectiveRoute = when (currentRoute) {
+        "weather" -> BottomNavItem.Home.route   // 날씨 화면 = 홈 탭
+        else -> currentRoute
+    }
 
     Row(
         modifier = Modifier
@@ -43,7 +46,7 @@ fun BottomBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         items.forEach { item ->
-            val selected = item == selectedItem
+            val selected = item.route == effectiveRoute   // ✅ route로 선택 여부 판단
             val interactionSource = remember { MutableInteractionSource() }
 
             Box(
@@ -64,7 +67,6 @@ fun BottomBar(
                     tint = if (selected) Color.Black else Color(0xFFB0BEC5),
                     modifier = Modifier
                         .size(35.dp)
-                        .offset(y = (-8).dp)
                 )
             }
         }

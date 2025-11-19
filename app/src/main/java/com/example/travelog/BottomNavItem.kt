@@ -47,12 +47,11 @@ sealed class BottomNavItem(
     )
 
     companion object {
-        // ⚠️ 여기 ‘null’ 절대 넣지 말기!
         val items: List<BottomNavItem> = listOf(
             Home,
             Map,
-            Archive,
             Schedule,
+            Archive,
             MyPage
         )
     }

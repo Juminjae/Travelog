@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "832741723152",
+    "project_id": "travelog-firebase",
+    "storage_bucket": "travelog-firebase.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:832741723152:android:74f821b195ce233b6bce95",
+        "android_client_info": {
+          "package_name": "com.example.travelog"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBVW46LOoAkp3TcpPI2zV3vdVGCtQ3tocg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
