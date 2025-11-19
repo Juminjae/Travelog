@@ -62,11 +62,10 @@ fun BottomBar(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
+                    painter = if (selected) item.selectedIcon() else item.unselectedIcon(),
                     contentDescription = item.label,
-                    tint = if (selected) Color.Black else Color(0xFFB0BEC5),
-                    modifier = Modifier
-                        .size(35.dp)
+                    tint = Color.Unspecified,  // 아이콘 원본 색 그대로 쓰고 싶으면
+                    modifier = Modifier.size(35.dp)
                 )
             }
         }

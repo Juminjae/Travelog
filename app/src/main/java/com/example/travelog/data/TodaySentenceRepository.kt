@@ -1,7 +1,7 @@
 package com.example.travelog.data
 
-import com.example.travelog.StudyLanguage
-import com.example.travelog.TodaySentence
+import com.example.travelog.model.StudyLanguage
+import com.example.travelog.model.TodaySentence
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 
