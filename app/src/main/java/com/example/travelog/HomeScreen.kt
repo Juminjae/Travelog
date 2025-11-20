@@ -28,8 +28,8 @@ import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 
-import com.example.travelog.model.TodaySentence
-import com.example.travelog.model.StudyLanguage
+import com.example.travelog.data.model.TodaySentence
+import com.example.travelog.data.model.StudyLanguage
 import com.example.travelog.data.loadSentencesFromFirestore
 
 @Composable
