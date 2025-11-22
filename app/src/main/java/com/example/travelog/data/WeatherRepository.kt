@@ -4,60 +4,75 @@ import com.example.travelog.data.model.*
 import com.example.travelog.data.network.RetrofitClient
 import java.text.SimpleDateFormat
 import java.util.*
+import com.example.travelog.BuildConfig
+
 
 object WeatherRepository {
 
-    private const val API_KEY = "450a019012f76c52e4d95ec2531fa8c7"
+    val API_KEY = BuildConfig.WEATHER_API_KEY
 
-    suspend fun loadHourlyAndDaily(cityName: String): Pair<List<HourlyWeatherUi>, List<DailyWeatherUi>> {
-        // 1) 도시 → 위도/경도
-        val geoList = RetrofitClient.weatherApi.getLocation(
-            city = cityName,
-            apiKey = API_KEY
-        )
-        val geo = geoList.firstOrNull()
-            ?: return emptyList<HourlyWeatherUi>() to emptyList()
-
-        // 2) OneCall 예보 요청
-        val oneCall = RetrofitClient.weatherApi.getOneCallForecast(
-            lat = geo.lat,
-            lon = geo.lon,
+    /**
+     * 도시 이름 → (lat, lon) 변환
+     */
+    suspend fun getLocation(city: String): Pair<Double, Double>? {
+        val response = RetrofitClient.weatherApi.getGeoLocation(
+            city = city,          // 예: "Sapporo,jp"
             apiKey = API_KEY
         )
 
-        // 3) 시간별: 앞의 7개만 카드용으로 사용
-        val hourlyUi = oneCall.hourly.take(7).mapIndexed { index, h ->
-            val label = if (index == 0) {
-                "지금"
-            } else {
-                val hour = Calendar.getInstance().apply {
-                    timeInMillis = h.dt * 1000L
-                }.get(Calendar.HOUR_OF_DAY)
-                "${hour}시"
-            }
+        println("🔎 getLocation() response = $response")
+
+        return if (response.isNotEmpty()) {
+            val data = response[0]
+            val result = data.lat to data.lon
+            println("✅ GEO RESULT = $result")
+            result   // (lat, lon)
+        } else {
+            println("❌ GEO LOOKUP FAILED: empty list for city = $city")
+            null
+        }
+    }
+
+    /**
+     * 시간별 / 일별 UI 데이터 로드
+     */
+    suspend fun loadHourlyAndDaily(city: String): Pair<List<HourlyWeatherUi>, List<DailyWeatherUi>> {
+
+        val forecast = RetrofitClient.weatherApi.getForecast(city, API_KEY)
+
+        // 3시간 간격 리스트 → 앞 7개를 시간별 카드용
+        val hourly = forecast.list.take(7).mapIndexed { index, item ->
+            val hour = java.util.Calendar.getInstance().apply {
+                timeInMillis = item.dt * 1000L
+            }.get(java.util.Calendar.HOUR_OF_DAY)
+
             HourlyWeatherUi(
-                label = label,
-                tempText = "${h.temp.toInt()}°C"
+                label = if (index == 0) "지금" else "${hour}시",
+                tempText = "${item.main.temp.toInt()}°C",
+                iconCode = item.weather.firstOrNull()?.icon
             )
         }
 
-        // 4) 일별: 오늘 포함 6개
-        val sdf = SimpleDateFormat("E", Locale.KOREAN) // 요일
-        val dailyUi = oneCall.daily.take(6).mapIndexed { index, d ->
-            val label = if (index == 0) {
-                "오늘"
-            } else {
-                val day = Date(d.dt * 1000L)
-                // "월", "화" 처럼 앞 글자만
-                sdf.format(day).first().toString()
-            }
+        // 일별은 날짜 기준으로 groupBy
+        val grouped = forecast.list.groupBy { item ->
+            java.text.SimpleDateFormat("yyyy-MM-dd").format(java.util.Date(item.dt * 1000L))
+        }
+
+        val daily = grouped.entries.take(6).mapIndexed { index, entry ->
+            val sdf = java.text.SimpleDateFormat("E", java.util.Locale.KOREA)
+            val dayLabel = if (index == 0) "오늘" else
+                sdf.format(java.util.Date(entry.value[0].dt * 1000L)).first().toString()
+
+            val temps = entry.value.map { it.main.temp }
+
             DailyWeatherUi(
-                dayLabel = label,
-                minTempText = "${d.temp.min.toInt()}°C",
-                maxTempText = "${d.temp.max.toInt()}°C"
+                dayLabel = dayLabel,
+                minTempText = "${temps.minOrNull()?.toInt()}°C",
+                maxTempText = "${temps.maxOrNull()?.toInt()}°C",
+                iconCode = entry.value.firstOrNull()?.weather?.firstOrNull()?.icon // ⭐ 수정
             )
         }
 
-        return hourlyUi to dailyUi
+        return hourly to daily
     }
 }
