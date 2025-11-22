@@ -31,6 +31,8 @@ import androidx.compose.ui.draw.alpha
 import com.example.travelog.data.model.TodaySentence
 import com.example.travelog.data.model.StudyLanguage
 import com.example.travelog.data.loadSentencesFromFirestore
+import com.example.travelog.data.model.mapWeatherIcon
+import com.example.travelog.data.network.RetrofitClient
 
 @Composable
 fun HomeScreen(
@@ -147,8 +149,8 @@ fun HomeScreen(
 
                     Spacer(modifier = Modifier.width(30.dp))
 
-                    WeatherPreviewCard(
-                        temperature = "14℃",
+                    WeatherPreviewCardWithApi(
+                        city = "Sapporo,jp",
                         imageRes = R.drawable.sapporo,
                         onClick = {
                             navController.navigate("weather")
@@ -296,20 +298,64 @@ fun HomeScreen(
 }
 
 @Composable
+fun WeatherPreviewCardWithApi(
+    city: String,          // 예: "Sapporo,jp"
+    imageRes: Int,
+    onClick: () -> Unit
+) {
+    var temp by remember { mutableStateOf<String?>(null) }
+    var iconCode by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    // API 호출
+    LaunchedEffect(city) {
+        try {
+            error = null
+            val result = RetrofitClient.weatherApi.getCurrentWeather(
+                city = city,
+                apiKey = BuildConfig.WEATHER_API_KEY
+            )
+            temp = "${result.main.temp.toInt()}°C"
+            iconCode = result.weather.firstOrNull()?.icon
+        } catch (e: Exception) {
+            e.printStackTrace()
+            error = e.message
+        }
+    }
+
+    val showTemp = when {
+        error != null      -> "-"
+        temp == null       -> "..."
+        else               -> temp!!
+    }
+
+    val iconRes = iconCode?.let { mapWeatherIcon(it) }
+
+    WeatherPreviewCard(
+        temperature = showTemp,
+        imageRes = imageRes,
+        iconRes = iconRes,  // ⭐ 아이콘 전달 (추가)
+        onClick = onClick
+    )
+}
+
+@Composable
 fun WeatherPreviewCard(
     temperature: String,
     imageRes: Int,
+    iconRes: Int?,      // ⭐ 추가됨!
     modifier: Modifier = Modifier,
-    onClick: () -> Unit   // 버튼처럼 동작하게!
+    onClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(100.dp)
             .clip(RoundedCornerShape(24.dp))
-            .clickable { onClick() }   // 🔥 버튼 기능 추가
+            .clickable { onClick() }
             .background(Color(0xFFF5F5F5))
     ) {
+
         Image(
             painter = painterResource(id = imageRes),
             contentDescription = "weather background",
@@ -325,27 +371,28 @@ fun WeatherPreviewCard(
                 .align(Alignment.BottomEnd)
                 .wrapContentSize()
                 .padding(end = 20.dp, bottom = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(
-                imageVector = Icons.Filled.WbSunny,
-                contentDescription = "sun icon",
-                tint = Color(0xFF9E9E9E),
-                modifier = Modifier.size(40.dp)
-            )
 
-            Spacer(modifier = Modifier.width(12.dp))
+            if (iconRes != null) {
+                Icon(
+                    painter = painterResource(id = iconRes),
+                    contentDescription = "weather icon",
+                    tint = Color.Unspecified,      // 💡 API 아이콘 색 그대로!
+                    modifier = Modifier.size(40.dp)
+                )
+            }
 
             Text(
                 text = temperature,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color.Black
+                color = Color.DarkGray
             )
         }
     }
 }
+
 
 @Composable
 fun TravelPlanCard(

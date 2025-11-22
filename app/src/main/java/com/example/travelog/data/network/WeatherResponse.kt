@@ -8,7 +8,8 @@ data class WeatherResponse(
 
 data class WeatherInfo(
     val main: String,        // 예: "Clouds"
-    val description: String  // 예: "온흐린 하늘"
+    val description: String, // 예: "온흐린 하늘"
+    val icon: String
 )
 
 data class MainInfo(

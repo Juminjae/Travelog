@@ -1,8 +1,21 @@
+import java.util.Properties
+import java.io.FileInputStream
+
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.services)
+}
+
+
+// .env 파일 읽기용
+val envProps = Properties().apply {
+    val envFile = rootProject.file(".env")
+    if (envFile.exists()) {
+        load(envFile.inputStream())
+    }
 }
 
 android {
@@ -19,6 +32,20 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        val weatherApiKey = envProps.getProperty("WEATHER_API_KEY") ?: ""
+        buildConfigField(
+            "String",
+            "WEATHER_API_KEY",
+            "\"${getApiKey("WEATHER_API_KEY")}\""
+        )
+
+        val googleApiKey = envProps.getProperty("GOOGLE_API_KEY") ?: ""
+        buildConfigField(
+            "String",
+            "GOOGLE_API_KEY",
+            "\"${getApiKey("GOOGLE_API_KEY")}\""
+        )
     }
 
     buildTypes {
@@ -39,6 +66,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -65,4 +93,14 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+fun getApiKey(key: String): String {
+    val props = Properties()
+    val envFile = File(rootDir, ".env")
+    if (envFile.exists()) {
+        props.load(FileInputStream(envFile))
+        return props.getProperty(key) ?: ""
+    }
+    return ""
 }

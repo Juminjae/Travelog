@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -32,6 +33,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.travelog.data.WeatherRepository
@@ -40,6 +42,11 @@ import kotlin.collections.forEachIndexed
 import kotlin.collections.lastIndex
 import com.example.travelog.data.model.DailyWeatherUi
 import com.example.travelog.data.model.HourlyWeatherUi
+import com.example.travelog.data.model.mapWeatherIcon
+import androidx.compose.ui.res.painterResource
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 
 @Composable
 fun WeatherScreen() {
@@ -50,19 +57,25 @@ fun WeatherScreen() {
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var hourlyList by remember { mutableStateOf<List<HourlyWeatherUi>>(emptyList()) }
     var dailyList by remember { mutableStateOf<List<DailyWeatherUi>>(emptyList()) }
+    var iconCode by remember { mutableStateOf<String?>(null) }
 
     // 첫 진입 시 한 번만 호출
     LaunchedEffect(cityName) {
         try {
-            val apiKey = "450a019012f76c52e4d95ec2531fa8c7"
+            errorMessage = null
+
+            val apiKey = BuildConfig.WEATHER_API_KEY  // 테스트용으로 그대로
+
             // 1) 현재 날씨
             val response = RetrofitClient.weatherApi.getCurrentWeather(
-                city = cityName,
+                city = cityName,   // 예: "Sapporo,jp"
                 apiKey = apiKey
             )
+
             temperature = "${response.main.temp.toInt()}°C"
             description = response.weather.firstOrNull()?.description ?: ""
             errorMessage = null
+            iconCode = response.weather.firstOrNull()?.icon
 
             // 2) 시간별 + 일별 예보
             val (hourly, daily) = WeatherRepository.loadHourlyAndDaily(cityName)
@@ -71,7 +84,7 @@ fun WeatherScreen() {
 
         } catch (e: Exception) {
             e.printStackTrace()
-            errorMessage = "날씨 정보를 불러오지 못했습니다."
+            errorMessage = e.message ?: "날씨 정보를 불러오지 못했습니다."
         }
     }
 
@@ -156,7 +169,6 @@ fun WeatherScreen() {
                 }
         )
 
-        //
         Spacer(modifier = Modifier.height(16.dp))
 
         // ▼ 여기서부터 중앙 큰 온도 + 카드들
@@ -175,9 +187,40 @@ fun WeatherScreen() {
                     fontWeight = FontWeight.Medium
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(5.dp))
+
+                // ② 날씨 아이콘
+                val iconRes: Int? = iconCode?.let { mapWeatherIcon(it) }
+
+                if (iconRes != null) {
+                    Icon(
+                        painter = painterResource(id = iconRes),
+                        contentDescription = "현재 날씨 아이콘",
+                        modifier = Modifier
+                            .size(60.dp)
+                            .shadow(
+                                elevation = 12.dp,
+                                shape = CircleShape,
+                                clip = false,
+                                ambientColor = Color(0xFFCCCCCC),
+                                spotColor = Color(0xFF222222)
+                            ),
+                        tint = Color.Unspecified
+                    )
+                }
+
+
+                Spacer(modifier = Modifier.height(10.dp))
 
                 when {
+                    temperature == null && errorMessage == null -> {
+                        Text(
+                            text = "날씨 불러오는 중...",
+                            fontSize = 14.sp,
+                            color = Color.Gray
+                        )
+                    }
+
                     errorMessage != null -> {
                         Text(
                             text = errorMessage ?: "",
@@ -185,42 +228,24 @@ fun WeatherScreen() {
                             color = Color.Red
                         )
                     }
-                    temperature == null -> {
-                        Text(
-                            text = "날씨 불러오는 중...",
-                            fontSize = 14.sp,
-                            color = Color.Gray
-                        )
-                    }
+
                     else -> {
-                        Row(
-                            verticalAlignment = Alignment.Bottom,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = temperature ?: "0°C",
-                                fontSize = 64.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "",
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.offset(y = (-6).dp)
-                            )
-                        }
+                        Text(
+                            text = temperature ?: "0°C",
+                            fontSize = 40.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(40.dp))
 
         // 오늘의 날씨 카드 (시간별)
         TodayHourlyWeatherCard(items = hourlyList)
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(25.dp))
 
         // 요일별 날씨 카드
         WeeklyWeatherCard(items = dailyList)
@@ -300,12 +325,16 @@ fun TodayHourlyWeatherCard(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(text = item.label, fontSize = 11.sp)
                         Spacer(modifier = Modifier.height(6.dp))
+
+                        val iconRes = mapWeatherIcon(item.iconCode) ?: R.drawable.icon_sun_small
+
                         Icon(
-                            painter = painterResource(id = R.drawable.icon_sun_small),
+                            painter = painterResource(id = iconRes),
                             contentDescription = null,
-                            tint = Color(0xFFB28C5E),
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(20.dp),
+                            tint = Color.Unspecified
                         )
+
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(text = item.tempText, fontSize = 11.sp)
                     }
@@ -334,7 +363,8 @@ fun WeeklyWeatherCard(
                 DayRow(
                     dayLabel = item.dayLabel,
                     minTemp = item.minTempText,
-                    maxTemp = item.maxTempText
+                    maxTemp = item.maxTempText,
+                    iconCode = item.iconCode     // ⭐ 추가
                 )
                 if (index != items.lastIndex) {
                     Spacer(modifier = Modifier.height(6.dp))
@@ -348,30 +378,52 @@ fun WeeklyWeatherCard(
 private fun DayRow(
     dayLabel: String,
     minTemp: String,
-    maxTemp: String
+    maxTemp: String,
+    iconCode: String?
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 왼쪽 요일 + 아이콘
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.width(60.dp)
+        ) {
+            val iconRes = mapWeatherIcon(iconCode) ?: R.drawable.icon_sun_small
             Icon(
-                painter = painterResource(id = R.drawable.icon_snow_small), // 임시 아이콘
+                painter = painterResource(id = iconRes),
                 contentDescription = null,
-                tint = Color(0xFFB0B0B0),
+                tint = Color.Unspecified,    // ⭐ 색 그대로!
                 modifier = Modifier.size(18.dp)
             )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(text = dayLabel, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Text(
+                text = dayLabel,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Start
+            )
         }
 
-        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = minTemp,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = Color(0xFF6E6E6E),
+            textAlign = TextAlign.End,
+            modifier = Modifier.width(30.dp)
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(30.dp))
+
 
         // 가운데 바(온도 범위 표시용 더미)
         Box(
             modifier = Modifier
-                .weight(1f)
+                .width(200.dp)
                 .height(6.dp)
                 .background(Color(0xFFD6D6D6), RoundedCornerShape(999.dp))
         ) {
@@ -383,13 +435,16 @@ private fun DayRow(
             )
         }
 
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(6.dp))
 
+        // 오른쪽 최저/최고
         // 오른쪽 최저/최고
         Text(
             text = maxTemp,
             fontSize = 13.sp,
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.width(30.dp),
+            textAlign = TextAlign.End
         )
     }
 }
