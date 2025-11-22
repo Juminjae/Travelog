@@ -7,7 +7,7 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:832741723152:android:74f821b195ce233b6bce95",
+        "mobilesdk_app_id": "1:832741723152:android:acef0e08debd89966bce95",
         "android_client_info": {
           "package_name": "com.example.travelog"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBVW46LOoAkp3TcpPI2zV3vdVGCtQ3tocg"
+          "current_key": "AIzaSyBeCJUtktrLf763O6YZ00WnbYIEY5zjIqY"
         }
       ],
       "services": {
