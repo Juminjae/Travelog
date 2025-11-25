@@ -22,11 +22,13 @@ import androidx.compose.material.icons.rounded.ArrowForwardIos
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.RectangleShape
 
 import com.example.travelog.data.model.TodaySentence
 import com.example.travelog.data.model.StudyLanguage
@@ -34,21 +36,26 @@ import com.example.travelog.data.loadSentencesFromFirestore
 import com.example.travelog.data.model.mapWeatherIcon
 import com.example.travelog.data.network.RetrofitClient
 
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.travelog.data.model.mapWeatherIcon
+
 @Composable
 fun HomeScreen(
-    navController: NavHostController
+    navController: NavHostController,
+    weatherViewModel: WeatherViewModel = viewModel()
 ) {
     // 검색창
     var query by remember { mutableStateOf("") }
 
+    // 수직으로 정렬
     Column(
         // Background
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxSize()    // 최대 사이즈 사용
             .background(Color.White)    // 배경 색상: 흰색
             .padding(horizontal = 20.dp, vertical = 10.dp)
     ) {
-        // Search bar + Bookmark + Notification icons
+        // Search bar + Bookmark + Notification icons 수평 정렬
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -91,6 +98,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .size(56.dp)
                     .padding(10.dp)
+                    .clip(CircleShape)
                     .clickable {
                         println("Bookmark clicked")
                     }
@@ -106,6 +114,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .size(56.dp)
                     .padding(10.dp)
+                    .clip(CircleShape)
                     .clickable {
                         println("Notifications clicked")
                     }
@@ -132,6 +141,7 @@ fun HomeScreen(
                         verticalArrangement = Arrangement.Center,
                         modifier = Modifier
                             .width(100.dp)
+                            .padding(5.dp)
                     ){
                         Text(
                             text = "출국까지",
@@ -149,9 +159,14 @@ fun HomeScreen(
 
                     Spacer(modifier = Modifier.width(30.dp))
 
-                    WeatherPreviewCardWithApi(
-                        city = "Sapporo,jp",
+                    LaunchedEffect(Unit) {
+                        weatherViewModel.load("Sapporo,jp")
+                    }
+
+                    WeatherPreviewCard(
+                        temperature = weatherViewModel.temperature ?: "...",
                         imageRes = R.drawable.sapporo,
+                        iconRes = weatherViewModel.iconCode?.let { mapWeatherIcon(it) },
                         onClick = {
                             navController.navigate("weather")
                         }
@@ -163,8 +178,9 @@ fun HomeScreen(
                 // 예정된 여행 >
                 Button(
                     onClick = { navController.navigate("plans") },
+                    shape = RectangleShape,
                     modifier = Modifier
-                        .fillMaxWidth(),
+                        .width(125.dp),
 
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color.Transparent,
@@ -191,7 +207,7 @@ fun HomeScreen(
                             tint = Color.Black,
                             modifier = Modifier
                                 .size(20.dp)
-                                .offset(y = 1.5.dp)
+                                .offset(y = 1.dp)
                         )
                     }
                 }
@@ -214,11 +230,13 @@ fun HomeScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
+
                 // 짐 체크리스트 >
                 Button(
                     onClick = { navController.navigate("checklist") },
+                    shape = RectangleShape,
                     modifier = Modifier
-                        .fillMaxWidth(),
+                        .width(125.dp),
 
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color.Transparent,
@@ -249,13 +267,21 @@ fun HomeScreen(
                         )
                     }
                 }
+
                 Spacer(modifier = Modifier.height(1.dp))
 
-                ChecklistHintCard(
-                    text = "빠진 짐은 없는지 확인해 볼까요?",
+                Box(
                     modifier = Modifier
-                        .padding(top = 4.dp)
-                )
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .clickable(
+                            onClick = { navController.navigate("checklist") }
+                        )                ) {
+                    ChecklistHintCard(
+                        text = "빠진 짐은 없는지 확인해 볼까요?",
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
@@ -323,18 +349,16 @@ fun WeatherPreviewCardWithApi(
         }
     }
 
-    val showTemp = when {
-        error != null      -> "-"
-        temp == null       -> "..."
-        else               -> temp!!
-    }
-
     val iconRes = iconCode?.let { mapWeatherIcon(it) }
 
     WeatherPreviewCard(
-        temperature = showTemp,
+        temperature = when {
+            error != null      -> "--°C"
+            temp == null -> "..."
+            else -> temp!!
+        },
         imageRes = imageRes,
-        iconRes = iconRes,  // ⭐ 아이콘 전달 (추가)
+        iconRes = iconRes,
         onClick = onClick
     )
 }
@@ -343,7 +367,7 @@ fun WeatherPreviewCardWithApi(
 fun WeatherPreviewCard(
     temperature: String,
     imageRes: Int,
-    iconRes: Int?,      // ⭐ 추가됨!
+    iconRes: Int?,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
@@ -378,7 +402,7 @@ fun WeatherPreviewCard(
                 Icon(
                     painter = painterResource(id = iconRes),
                     contentDescription = "weather icon",
-                    tint = Color.Unspecified,      // 💡 API 아이콘 색 그대로!
+                    tint = Color.Unspecified,
                     modifier = Modifier.size(40.dp)
                 )
             }
