@@ -1,7 +1,6 @@
 package com.example.travelog
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,26 +8,26 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -36,49 +35,59 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.travelog.data.WeatherRepository
-import com.example.travelog.data.network.RetrofitClient
-import kotlin.collections.forEachIndexed
-import kotlin.collections.lastIndex
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.travelog.data.model.DailyWeatherUi
 import com.example.travelog.data.model.HourlyWeatherUi
 import com.example.travelog.data.model.mapWeatherIcon
-import androidx.compose.ui.res.painterResource
-import androidx.compose.material3.Icon
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.example.travelog.data.network.RetrofitClient
+import com.example.travelog.data.WeatherRepository
 
 @Composable
-fun WeatherScreen() {
-    // 상태 값들
-    var temperature by remember { mutableStateOf<String?>(null) }
-    var description by remember { mutableStateOf<String?>(null) }
-    var cityName by remember { mutableStateOf("Seoul") }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    var hourlyList by remember { mutableStateOf<List<HourlyWeatherUi>>(emptyList()) }
-    var dailyList by remember { mutableStateOf<List<DailyWeatherUi>>(emptyList()) }
-    var iconCode by remember { mutableStateOf<String?>(null) }
+fun WeatherScreen(
+    weatherViewModel: WeatherViewModel = viewModel()
+) {
+    // ViewModel 상태 읽기
+    var temperature = weatherViewModel.temperature
+    var iconCode = weatherViewModel.iconCode
+    var hourlyList = weatherViewModel.hourlyList
+    var dailyList = weatherViewModel.dailyList
+    var errorMessage = weatherViewModel.errorMessage
+    var isLoading = weatherViewModel.isLoading
 
-    // 첫 진입 시 한 번만 호출
-    LaunchedEffect(cityName) {
+    val tabCities = listOf(
+        Triple("내 여행지", "Sapporo,jp", "삿포로"),
+        Triple("일본", "Tokyo,jp", "도쿄"),
+        Triple("영국", "London,gb", "런던"),
+        Triple("미국", "New York,us", "뉴욕"),
+        Triple("중국", "Shanghai,cn", "상하이")
+    )
+
+    var selectedTab by remember { mutableStateOf(0) }
+    var apiCity by remember { mutableStateOf(tabCities[selectedTab].second) }
+
+    LaunchedEffect(selectedTab) {
+        apiCity = tabCities[selectedTab].second
+    }
+
+    // 홈을 안 거치고 바로 들어온 경우 대비해서 한 번 로드
+    LaunchedEffect(apiCity) {
         try {
             errorMessage = null
 
-            val apiKey = BuildConfig.WEATHER_API_KEY  // 테스트용으로 그대로
+            val apiKey = BuildConfig.WEATHER_API_KEY
 
-            // 1) 현재 날씨
             val response = RetrofitClient.weatherApi.getCurrentWeather(
-                city = cityName,   // 예: "Sapporo,jp"
+                city = apiCity,
                 apiKey = apiKey
             )
 
             temperature = "${response.main.temp.toInt()}°C"
-            description = response.weather.firstOrNull()?.description ?: ""
-            errorMessage = null
             iconCode = response.weather.firstOrNull()?.icon
 
-            // 2) 시간별 + 일별 예보
-            val (hourly, daily) = WeatherRepository.loadHourlyAndDaily(cityName)
+            val (hourly, daily) = WeatherRepository.loadHourlyAndDaily(apiCity)
             hourlyList = hourly
             dailyList = daily
 
@@ -89,13 +98,12 @@ fun WeatherScreen() {
     }
 
     Column(
-        // Background
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)    // 배경 색상: 흰색
+            .background(Color.White)
             .padding(horizontal = 0.dp, vertical = 10.dp)
     ) {
-        // Text + Bookmark + Notification icons
+        // 상단 타이틀 + 아이콘
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -113,10 +121,9 @@ fun WeatherScreen() {
                     fontWeight = FontWeight.Bold
                 )
             }
-            // space between Search bar & Bookmark Button
+
             Spacer(modifier = Modifier.width(10.dp))
 
-            // Bookmark Button
             Icon(
                 painter = painterResource(id = R.drawable.icon_bookmark),
                 contentDescription = "Bookmark Icon",
@@ -124,14 +131,11 @@ fun WeatherScreen() {
                 modifier = Modifier
                     .size(56.dp)
                     .padding(10.dp)
-                    .clickable {
-                        println("Bookmark clicked")
-                    }
+                    .clickable { println("Bookmark clicked") }
             )
 
             Spacer(modifier = Modifier.width(1.dp))
 
-            // Notifications Button
             Icon(
                 painter = painterResource(id = R.drawable.icon_notification),
                 contentDescription = "Alert Icon",
@@ -139,9 +143,7 @@ fun WeatherScreen() {
                 modifier = Modifier
                     .size(56.dp)
                     .padding(10.dp)
-                    .clickable {
-                        println("Notifications clicked")
-                    }
+                    .clickable { println("Notifications clicked") }
             )
         }
 
@@ -151,7 +153,16 @@ fun WeatherScreen() {
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            WeatherCountryTabs()
+            WeatherCountryTabs(
+                tabs = tabCities.map { it.first },
+                selectedTab = selectedTab,
+                onSelect = { index ->
+                    selectedTab = index
+                    val api   = tabCities[index].second  // "Sapporo,jp" ...
+                    val displayCity = tabCities[index].third
+                    weatherViewModel.load(apiCity = api, display = displayCity)
+                }
+            )
         }
 
         Box(
@@ -171,8 +182,7 @@ fun WeatherScreen() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ▼ 여기서부터 중앙 큰 온도 + 카드들
-        // 도시 이름 + 현재 기온
+        // ▼ 중앙 도시 + 아이콘 + 큰 온도
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -181,17 +191,18 @@ fun WeatherScreen() {
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
 
+                val displayName = weatherViewModel.displayCityName
+
                 Text(
-                    text = "삿포로",          // TODO: 나중에 cityName으로 바꿔도 됨
+                    text = displayName,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Medium
                 )
 
                 Spacer(modifier = Modifier.height(5.dp))
 
-                // ② 날씨 아이콘
+                // 날씨 아이콘
                 val iconRes: Int? = iconCode?.let { mapWeatherIcon(it) }
-
                 if (iconRes != null) {
                     Icon(
                         painter = painterResource(id = iconRes),
@@ -201,14 +212,11 @@ fun WeatherScreen() {
                             .shadow(
                                 elevation = 12.dp,
                                 shape = CircleShape,
-                                clip = false,
-                                ambientColor = Color(0xFFCCCCCC),
-                                spotColor = Color(0xFF222222)
+                                clip = false
                             ),
                         tint = Color.Unspecified
                     )
                 }
-
 
                 Spacer(modifier = Modifier.height(10.dp))
 
@@ -220,15 +228,13 @@ fun WeatherScreen() {
                             color = Color.Gray
                         )
                     }
-
                     errorMessage != null -> {
                         Text(
-                            text = errorMessage ?: "",
+                            text = errorMessage!!,
                             fontSize = 14.sp,
                             color = Color.Red
                         )
                     }
-
                     else -> {
                         Text(
                             text = temperature ?: "0°C",
@@ -253,10 +259,11 @@ fun WeatherScreen() {
 }
 
 @Composable
-fun WeatherCountryTabs() {
-    val tabs = listOf("내 여행지", "일본", "영국", "미국", "중국")
-    var selectedTab by remember { mutableStateOf(0) }
-
+fun WeatherCountryTabs(
+    tabs: List<String>,
+    selectedTab: Int,
+    onSelect: (Int) -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -268,7 +275,7 @@ fun WeatherCountryTabs() {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .padding(end = 18.dp)
-                    .clickable { selectedTab = index }
+                    .clickable { onSelect(index) }
             ) {
                 Text(
                     text = title,
@@ -308,26 +315,46 @@ fun TodayHourlyWeatherCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
-            .height(120.dp)
+            .height(140.dp)
             .background(Color(0xFFE5E5E5), RoundedCornerShape(24.dp))
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Column {
-            Text("오늘의 날씨", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                "오늘의 날씨",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Divider(
+                color = Color.LightGray,
+                thickness = 1.dp,
+                modifier = Modifier.fillMaxWidth()
+            )
+
             Spacer(modifier = Modifier.height(8.dp))
 
-            Row(
+            LazyRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                items.forEach { item ->
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = item.label, fontSize = 11.sp)
-                        Spacer(modifier = Modifier.height(6.dp))
+                items(items) { item ->
+                    Column(
+                        modifier = Modifier.width(30.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = item.label,
+                            fontSize = 11.sp,
+                            color = Color.DarkGray
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
 
                         val iconRes = mapWeatherIcon(item.iconCode) ?: R.drawable.icon_sun_small
-
                         Icon(
                             painter = painterResource(id = iconRes),
                             contentDescription = null,
@@ -335,8 +362,15 @@ fun TodayHourlyWeatherCard(
                             tint = Color.Unspecified
                         )
 
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(text = item.tempText, fontSize = 11.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = item.tempText,
+                            fontSize = 11.sp,
+                            color = Color.DarkGray,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
             }
@@ -357,6 +391,15 @@ fun WeeklyWeatherCard(
     ) {
         Column {
             Text("날씨", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Divider(
+                color = Color.LightGray,
+                thickness = 1.dp,
+                modifier = Modifier.fillMaxWidth()
+            )
+
             Spacer(modifier = Modifier.height(8.dp))
 
             items.forEachIndexed { index, item ->
@@ -364,7 +407,7 @@ fun WeeklyWeatherCard(
                     dayLabel = item.dayLabel,
                     minTemp = item.minTempText,
                     maxTemp = item.maxTempText,
-                    iconCode = item.iconCode     // ⭐ 추가
+                    iconCode = item.iconCode
                 )
                 if (index != items.lastIndex) {
                     Spacer(modifier = Modifier.height(6.dp))
@@ -394,7 +437,7 @@ private fun DayRow(
             Icon(
                 painter = painterResource(id = iconRes),
                 contentDescription = null,
-                tint = Color.Unspecified,    // ⭐ 색 그대로!
+                tint = Color.Unspecified,
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(10.dp))
@@ -419,8 +462,6 @@ private fun DayRow(
         Spacer(modifier = Modifier.weight(1f))
         Spacer(modifier = Modifier.height(30.dp))
 
-
-        // 가운데 바(온도 범위 표시용 더미)
         Box(
             modifier = Modifier
                 .width(200.dp)
@@ -430,15 +471,13 @@ private fun DayRow(
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .fillMaxWidth(0.5f)   // 더미 비율
+                    .fillMaxWidth(0.5f)
                     .background(Color(0xFFB3D9F5), RoundedCornerShape(999.dp))
             )
         }
 
         Spacer(modifier = Modifier.width(6.dp))
 
-        // 오른쪽 최저/최고
-        // 오른쪽 최저/최고
         Text(
             text = maxTemp,
             fontSize = 13.sp,

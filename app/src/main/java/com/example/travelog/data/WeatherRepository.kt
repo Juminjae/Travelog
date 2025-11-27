@@ -40,11 +40,11 @@ object WeatherRepository {
 
         val forecast = RetrofitClient.weatherApi.getForecast(city, API_KEY)
 
-        // 3시간 간격 리스트 → 앞 7개를 시간별 카드용
-        val hourly = forecast.list.take(7).mapIndexed { index, item ->
-            val hour = java.util.Calendar.getInstance().apply {
+        // 3시간 간격 리스트 → 앞 10개를 시간별 카드용
+        val hourly = forecast.list.take(10).mapIndexed { index, item ->
+            val hour = Calendar.getInstance(TimeZone.getTimeZone("Asia/Seoul")).apply {
                 timeInMillis = item.dt * 1000L
-            }.get(java.util.Calendar.HOUR_OF_DAY)
+            }.get(Calendar.HOUR_OF_DAY)
 
             HourlyWeatherUi(
                 label = if (index == 0) "지금" else "${hour}시",

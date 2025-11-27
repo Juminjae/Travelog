@@ -33,6 +33,7 @@ fun BottomBar(
 
     val effectiveRoute = when (currentRoute) {
         "weather" -> BottomNavItem.Home.route   // 날씨 화면 = 홈 탭
+        "checklist" -> BottomNavItem.Home.route  // 체크리스트 화면 = 맵 탭
         else -> currentRoute
     }
 
