@@ -1,5 +1,7 @@
 package com.example.travelog
 
+import com.example.travelog.data.model.PhotoComment
+
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -175,7 +177,7 @@ fun ArchivePhotoOverlay(
                                 Spacer(Modifier.width(10.dp))
 
                                 Text(
-                                    text = "${c.author}  ${c.text}",
+                                    text = "${c.authorName}  ${c.text}",
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -217,8 +219,3 @@ fun ArchivePhotoOverlay(
         }
     }
 }
-
-data class PhotoComment(
-    val author: String,
-    val text: String,
-)
