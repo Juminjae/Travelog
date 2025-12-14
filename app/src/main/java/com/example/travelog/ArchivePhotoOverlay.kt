@@ -38,6 +38,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
+import android.net.Uri
+import android.widget.ImageView
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -50,7 +53,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun ArchivePhotoOverlay(
     visible: Boolean,
-    photo: Painter,
+    photoUri: String?,
     comments: List<PhotoComment>,
     inputText: String,
     onInputTextChange: (String) -> Unit,
@@ -97,12 +100,25 @@ fun ArchivePhotoOverlay(
                         .height(420.dp)
                         .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
                 ) {
-                    Image(
-                        painter = photo,
-                        contentDescription = "selected photo",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    if (photoUri != null) {
+                        AndroidView(
+                            modifier = Modifier.fillMaxSize(),
+                            factory = { ctx ->
+                                ImageView(ctx).apply {
+                                    scaleType = ImageView.ScaleType.CENTER_CROP
+                                }
+                            },
+                            update = { iv ->
+                                iv.setImageURI(Uri.parse(photoUri))
+                            }
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.LightGray)
+                        )
+                    }
 
                     // 우상단 X
                     IconButton(

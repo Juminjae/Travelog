@@ -1,6 +1,10 @@
 package com.example.travelog
 
 import android.annotation.SuppressLint
+import android.net.Uri
+import android.widget.ImageView
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -38,6 +42,7 @@ import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -50,9 +55,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+
+data class ArchivePhotoItem(
+    val id: String,
+    val uri: String? = null
+)
 
 @SuppressLint("UnrememberedMutableState")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -68,6 +79,7 @@ fun ArchiveScreen(
     var overlayOpen by remember { mutableStateOf(false) }
     var selectedPhotoId by remember { mutableStateOf<String?>(null) }
     var commentInput by remember { mutableStateOf("") }
+    var selectedPhotoUri by remember { mutableStateOf<String?>(null) }
 
     // 댓글(더미) — photoId별로 분리 저장
     val commentMap = remember { mutableStateMapOf<String, SnapshotStateList<PhotoComment>>() }
@@ -75,14 +87,38 @@ fun ArchiveScreen(
     fun commentsOf(photoId: String): SnapshotStateList<PhotoComment> =
         commentMap.getOrPut(photoId) { mutableStateListOf() }
 
-    val photoMap = remember(cityList) {
-        mapOf(
-            "빈" to List(8) { "VIN_${it + 1}" },
-            "런던" to List(6) { "LDN_${it + 1}" },
-            "삿포로" to List(10) { "SPK_${it + 1}" }
-        )
+    // 도시별 사진 목록 (더미 + 사용자가 추가한 사진 Uri)
+    val photoStore = remember {
+        mutableStateMapOf<String, SnapshotStateList<ArchivePhotoItem>>()
     }
-    val photoList = photoMap[selectedCity].orEmpty()
+
+    // 최초 1회 더미 데이터 주입
+    LaunchedEffect(Unit) {
+        if (photoStore.isEmpty()) {
+            photoStore["빈"] = mutableStateListOf<ArchivePhotoItem>().apply {
+                addAll(List(8) { ArchivePhotoItem(id = "VIN_${it + 1}") })
+            }
+            photoStore["런던"] = mutableStateListOf<ArchivePhotoItem>().apply {
+                addAll(List(6) { ArchivePhotoItem(id = "LDN_${it + 1}") })
+            }
+            photoStore["삿포로"] = mutableStateListOf<ArchivePhotoItem>().apply {
+                addAll(List(10) { ArchivePhotoItem(id = "SPK_${it + 1}") })
+            }
+        }
+    }
+
+    val photoList = photoStore.getOrPut(selectedCity) { mutableStateListOf() }
+
+    // 갤러리(사진) 선택 런처
+    val pickImageLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            // 선택된 사진을 현재 도시의 목록에 추가
+            val newId = "${selectedCity}_UP_${System.currentTimeMillis()}"
+            photoList.add(ArchivePhotoItem(id = newId, uri = uri.toString()))
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -119,11 +155,14 @@ fun ArchiveScreen(
 
             ArchivePhotoGrid(
                 photoList = photoList,
-                onPhotoClick = { id ->
-                    selectedPhotoId = id
+                onPhotoClick = { item ->
+                    selectedPhotoId = item.id
+                    selectedPhotoUri = item.uri
                     overlayOpen = true
                 },
-                onPlusClick = { /* 이미지 업로드 확장 */ }
+                onPlusClick = {
+                    pickImageLauncher.launch("image/*")
+                }
             )
         }
 
@@ -131,8 +170,7 @@ fun ArchiveScreen(
         val currentComments = selectedPhotoId?.let { commentsOf(it) } ?: mutableStateListOf()
         ArchivePhotoOverlay(
             visible = overlayOpen,
-            // 지금은 더미 페인터(회색). 나중에 실제 이미지로 교체
-            photo = ColorPainter(Color(0xFFE5E7EB)),
+            photoUri = selectedPhotoUri,
             comments = currentComments,
             inputText = commentInput,
             onInputTextChange = { commentInput = it },
@@ -146,6 +184,7 @@ fun ArchiveScreen(
             onDismiss = {
                 overlayOpen = false
                 selectedPhotoId = null
+                selectedPhotoUri = null
                 commentInput = ""
             }
         )
@@ -278,8 +317,8 @@ private fun ArchiveCityDropdown(
 
 @Composable
 private fun ArchivePhotoGrid(
-    photoList: List<String>,
-    onPhotoClick: (String) -> Unit,
+    photoList: List<ArchivePhotoItem>,
+    onPhotoClick: (ArchivePhotoItem) -> Unit,
     onPlusClick: () -> Unit,
 ) {
     LazyVerticalGrid(
@@ -290,17 +329,32 @@ private fun ArchivePhotoGrid(
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
-        items(photoList) { id ->
+        items(photoList) { item ->
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(3f / 4f)
-                    .background(Color(0xFFF3F4F6), RoundedCornerShape(6.dp))
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xFFF3F4F6))
                     .border(1.dp, Color(0xFFE5E7EB), RoundedCornerShape(6.dp))
-                    .clickable { onPhotoClick(id) },
+                    .clickable { onPhotoClick(item) },
                 contentAlignment = Alignment.Center
             ) {
-                Text(text = id, color = Color(0xFF6B7280), fontSize = 12.sp)
+                if (item.uri != null) {
+                    AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { ctx ->
+                            ImageView(ctx).apply {
+                                scaleType = ImageView.ScaleType.CENTER_CROP
+                            }
+                        },
+                        update = { iv ->
+                            iv.setImageURI(Uri.parse(item.uri))
+                        }
+                    )
+                } else {
+                    Text(text = item.id, color = Color(0xFF6B7280), fontSize = 12.sp)
+                }
             }
         }
 
