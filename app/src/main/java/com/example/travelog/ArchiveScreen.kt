@@ -38,6 +38,9 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -46,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -58,6 +62,17 @@ fun ArchiveScreen(
     var expanded by remember { mutableStateOf(false) }
     var selectedCity by remember { mutableStateOf(cityList.first()) }
 
+    // --- overlay state ---
+    var overlayOpen by remember { mutableStateOf(false) }
+    var selectedPhotoId by remember { mutableStateOf<String?>(null) }
+    var commentInput by remember { mutableStateOf("") }
+
+    // 댓글(더미) — photoId별로 분리 저장
+    val commentMap = remember { mutableStateMapOf<String, SnapshotStateList<PhotoComment>>() }
+
+    fun commentsOf(photoId: String): SnapshotStateList<PhotoComment> =
+        commentMap.getOrPut(photoId) { mutableStateListOf() }
+
     val photoMap = remember(cityList) {
         mapOf(
             "빈" to List(8) { "VIN_${it + 1}" },
@@ -67,39 +82,70 @@ fun ArchiveScreen(
     }
     val photoList = photoMap[selectedCity].orEmpty()
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
     ) {
-        ArchiveTopBar(
-            onBookmarkClick = { /* 저장 연결 */ },
-            onNotificationClick = { /* 알림 연결 */ }
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+        ) {
+            ArchiveTopBar(
+                onBookmarkClick = { /* 저장 연결 */ },
+                onNotificationClick = { /* 알림 연결 */ }
+            )
 
-        ArchiveTabs(
-            selectedTabIndex = selectedTabIndex,
-            onSelectTab = { selectedTabIndex = it }
-        )
+            ArchiveTabs(
+                selectedTabIndex = selectedTabIndex,
+                onSelectTab = { selectedTabIndex = it }
+            )
 
-        HorizontalDivider(thickness = 1.dp, color = Color(0xFFE5E7EB))
+            HorizontalDivider(thickness = 1.dp, color = Color(0xFFE5E7EB))
 
-        ArchiveCityDropdown(
-            cityList = cityList,
-            selectedCity = selectedCity,
-            expanded = expanded,
-            onToggleExpanded = { expanded = !expanded },
-            onSelectCity = { city ->
-                selectedCity = city
-                expanded = false
+            ArchiveCityDropdown(
+                cityList = cityList,
+                selectedCity = selectedCity,
+                expanded = expanded,
+                onToggleExpanded = { expanded = !expanded },
+                onSelectCity = { city ->
+                    selectedCity = city
+                    expanded = false
+                },
+                onDismiss = { expanded = false }
+            )
+
+            ArchivePhotoGrid(
+                photoList = photoList,
+                onPhotoClick = { id ->
+                    selectedPhotoId = id
+                    overlayOpen = true
+                },
+                onPlusClick = { /* 이미지 업로드 확장 */ }
+            )
+        }
+
+        // ===== Overlay =====
+        val currentComments = selectedPhotoId?.let { commentsOf(it) } ?: mutableStateListOf()
+        ArchivePhotoOverlay(
+            visible = overlayOpen,
+            // 지금은 더미 페인터(회색). 나중에 실제 이미지로 교체
+            photo = ColorPainter(Color(0xFFE5E7EB)),
+            comments = currentComments,
+            inputText = commentInput,
+            onInputTextChange = { commentInput = it },
+            onSend = {
+                val t = commentInput.trim()
+                if (t.isNotEmpty() && selectedPhotoId != null) {
+                    commentsOf(selectedPhotoId!!).add(PhotoComment(author = "me", text = t))
+                    commentInput = ""
+                }
             },
-            onDismiss = { expanded = false }
-        )
-
-        ArchivePhotoGrid(
-            photoList = photoList,
-            onPhotoClick = { /* 오버레이 확장 */ },
-            onPlusClick = { /* 이미지 업로드 확장 */ }
+            onDismiss = {
+                overlayOpen = false
+                selectedPhotoId = null
+                commentInput = ""
+            }
         )
     }
 }
