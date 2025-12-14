@@ -31,7 +31,7 @@ class MainActivity : ComponentActivity() {
                     containerColor = Color.White,
                     bottomBar = {
                         BottomBar(
-                            currentRoute = currentRoute,           // ✅ 여기!
+                            currentRoute = currentRoute,
                             onItemSelected = { item ->
                                 navController.navigate(item.route) {
                                     launchSingleTop = true

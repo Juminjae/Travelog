@@ -34,5 +34,8 @@ fun MainNavHost(
         composable("weather") {
             WeatherScreen()
         }
+        composable("checklist") {
+            ChecklistScreen()
+        }
     }
 }

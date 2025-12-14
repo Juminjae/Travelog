@@ -1,4 +1,4 @@
-package com.example.travelog
+package com.example.travelog.data.model
 
 enum class StudyLanguage {
     JAPANESE

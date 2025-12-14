@@ -1,49 +1,48 @@
 package com.example.travelog
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.res.painterResource
 
 sealed class BottomNavItem(
     val route: String,
     val label: String,
-    val selectedIcon: ImageVector,
-    val unselectedIcon: ImageVector
+    val selectedIcon: @Composable () -> Painter,
+    val unselectedIcon: @Composable () -> Painter
 ) {
     object Home : BottomNavItem(
         route = "home",
         label = "홈",
-        selectedIcon = Icons.Filled.Home,
-        unselectedIcon = Icons.Outlined.Home
+        selectedIcon = { painterResource(id = R.drawable.icon_home_selected) },
+        unselectedIcon = { painterResource(id = R.drawable.icon_home_unselected) }
     )
 
     object Map : BottomNavItem(
         route = "map",
         label = "지도",
-        selectedIcon = Icons.Filled.Map,
-        unselectedIcon = Icons.Outlined.Map
+        selectedIcon = { painterResource(id = R.drawable.icon_map_selected) },
+        unselectedIcon = { painterResource(id = R.drawable.icon_map_unselected) }
     )
 
     object Archive : BottomNavItem(
         route = "archive",
         label = "아카이브",
-        selectedIcon = Icons.Filled.Archive,
-        unselectedIcon = Icons.Outlined.Archive
+        selectedIcon = { painterResource(id = R.drawable.icon_archive_selected) },
+        unselectedIcon = { painterResource(id = R.drawable.icon_archive_unselected) }
     )
 
     object Schedule : BottomNavItem(
         route = "schedule",
         label = "일정",
-        selectedIcon = Icons.Filled.CalendarMonth,
-        unselectedIcon = Icons.Outlined.CalendarMonth
+        selectedIcon = { painterResource(id = R.drawable.icon_calendar_selected) },
+        unselectedIcon = { painterResource(id = R.drawable.icon_calendar_unselected) }
     )
 
     object MyPage : BottomNavItem(
         route = "mypage",
         label = "마이",
-        selectedIcon = Icons.Filled.Person,
-        unselectedIcon = Icons.Outlined.Person
+        selectedIcon = { painterResource(id = R.drawable.icon_mypage_selected) },
+        unselectedIcon = { painterResource(id = R.drawable.icon_mypage_unselected) }
     )
 
     companion object {
