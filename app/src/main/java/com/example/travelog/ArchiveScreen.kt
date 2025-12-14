@@ -59,6 +59,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.example.travelog.data.model.PhotoComment
 
 data class ArchivePhotoItem(
     val id: String,
@@ -167,7 +168,7 @@ fun ArchiveScreen(
         }
 
         // ===== Overlay =====
-        val currentComments = selectedPhotoId?.let { commentsOf(it) } ?: mutableStateListOf()
+        val currentComments: SnapshotStateList<PhotoComment> = selectedPhotoId?.let { commentsOf(it) } ?: mutableStateListOf()
         ArchivePhotoOverlay(
             visible = overlayOpen,
             photoUri = selectedPhotoUri,
@@ -177,7 +178,14 @@ fun ArchiveScreen(
             onSend = {
                 val t = commentInput.trim()
                 if (t.isNotEmpty() && selectedPhotoId != null) {
-                    commentsOf(selectedPhotoId!!).add(PhotoComment(author = "me", text = t))
+                    commentsOf(selectedPhotoId!!).add(
+                        PhotoComment(
+                            photoId = selectedPhotoId!!,
+                            authorName = "me",
+                            text = t,
+                            createdAt = System.currentTimeMillis()
+                        )
+                    )
                     commentInput = ""
                 }
             },
