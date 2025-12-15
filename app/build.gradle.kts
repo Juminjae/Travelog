@@ -48,6 +48,9 @@ android {
             "GOOGLE_API_KEY",
             "\"${getApiKey("GOOGLE_API_KEY")}\""
         )
+
+        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] =
+            envProps.getProperty("GOOGLE_MAPS_API_KEY")
     }
 
     buildTypes {
@@ -83,6 +86,8 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.compose.material.icons.extended)
+    implementation("com.google.maps.android:maps-compose:2.11.4")
+    implementation("com.google.android.gms:play-services-maps:19.2.0")
     implementation(platform("com.google.firebase:firebase-bom:34.6.0"))
     implementation("com.google.firebase:firebase-firestore")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
