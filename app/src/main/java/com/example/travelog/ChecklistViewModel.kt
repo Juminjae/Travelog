@@ -1,43 +1,58 @@
 package com.example.travelog
 
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.snapshots.SnapshotStateList
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.travelog.data.model.ChecklistItem
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
-class ChecklistViewModel : ViewModel() {
+class ChecklistViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val _items = mutableStateListOf<ChecklistItem>()
-    val items: SnapshotStateList<ChecklistItem> get() = _items
+    private val dao = AppDatabase.get(app).checklistDao()
+
+    // DB(Entity) -> UI모델(ChecklistItem)로 변환해서 노출
+    val items: StateFlow<List<ChecklistItem>> =
+        dao.observeAll()
+            .map { list -> list.map { it.toUi() } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     init {
-        // 기본 항목들
-        _items.addAll(
-            listOf(
-                ChecklistItem(1, "여권"),
-                ChecklistItem(2, "비행기 티켓 / e-티켓"),
-                ChecklistItem(3, "지갑 (카드, 현금)"),
-                ChecklistItem(4, "충전기"),
-                ChecklistItem(5, "멀티탭"),
-                ChecklistItem(6, "보조배터리")
-            )
-        )
-    }
-
-    fun toggleChecked(id: Int, checked: Boolean) {
-        val index = _items.indexOfFirst { it.id == id }
-        if (index != -1) {
-            _items[index] = _items[index].copy(isChecked = checked)
+        // 앱 첫 실행 시 기본 항목 넣기 (이미 있으면 넣지 않음)
+        viewModelScope.launch {
+            if (dao.count() == 0) {
+                dao.insertAll(
+                    listOf(
+                        ChecklistEntity(label = "여권"),
+                        ChecklistEntity(label = "비행기 티켓 / e-티켓"),
+                        ChecklistEntity(label = "지갑 (카드, 현금)"),
+                        ChecklistEntity(label = "충전기"),
+                        ChecklistEntity(label = "멀티탭"),
+                        ChecklistEntity(label = "보조배터리")
+                    )
+                )
+            }
         }
     }
 
+    fun toggleChecked(id: Int, checked: Boolean) {
+        viewModelScope.launch { dao.setChecked(id, checked) }
+    }
+
     fun addItem(label: String) {
-        if (label.isBlank()) return
-        val newId = (_items.maxOfOrNull { it.id } ?: 0) + 1
-        _items.add(ChecklistItem(newId, label.trim()))
+        val t = label.trim()
+        if (t.isEmpty()) return
+        viewModelScope.launch { dao.insert(ChecklistEntity(label = t)) }
     }
 
     fun removeItem(id: Int) {
-        _items.removeAll { it.id == id }
+        viewModelScope.launch { dao.deleteById(id) }
     }
 }
+
+// Entity -> UI Model 변환
+private fun ChecklistEntity.toUi(): ChecklistItem =
+    ChecklistItem(id = id, label = label, isChecked = isChecked)
