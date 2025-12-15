@@ -37,12 +37,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.ui.res.painterResource
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.collectAsState
 
 @Composable
 fun ChecklistScreen(
     checklistViewModel: ChecklistViewModel = viewModel()
 ) {
-    val items = checklistViewModel.items
+    val items by checklistViewModel.items.collectAsState()
     var newItemText by remember { mutableStateOf("") }
 
     Column(
