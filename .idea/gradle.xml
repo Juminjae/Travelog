@@ -9,8 +9,8 @@
         <option name="gradleJvm" value="#GRADLE_LOCAL_JAVA_HOME" />
         <option name="modules">
           <set>
-            <option value="$PROJECT_DIR$" />
-            <option value="$PROJECT_DIR$/app" />
+            <option value="$PROJECT_DIR$/../../객체지향 KOTLIN/Travelog" />
+            <option value="$PROJECT_DIR$/../../객체지향 KOTLIN/Travelog/app" />
           </set>
         </option>
       </GradleProjectSettings>
