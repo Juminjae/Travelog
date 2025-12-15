@@ -22,11 +22,19 @@ import androidx.compose.material.icons.rounded.ArrowForwardIos
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.text.input.TextFieldValue
 
 import com.example.travelog.data.model.TodaySentence
 import com.example.travelog.data.model.StudyLanguage
@@ -34,30 +42,45 @@ import com.example.travelog.data.loadSentencesFromFirestore
 import com.example.travelog.data.model.mapWeatherIcon
 import com.example.travelog.data.network.RetrofitClient
 
+import androidx.lifecycle.viewmodel.compose.viewModel
+
 @Composable
 fun HomeScreen(
-    navController: NavHostController
+    navController: NavHostController,
+    weatherViewModel: WeatherViewModel = viewModel()
 ) {
     // 검색창
     var query by remember { mutableStateOf("") }
+//    var query by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+//        mutableStateOf(TextFieldValue(""))
+//    }
+//    val keyboard = LocalSoftwareKeyboardController.current
 
+    // 수직으로 정렬
     Column(
         // Background
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxSize()    // 최대 사이즈 사용
             .background(Color.White)    // 배경 색상: 흰색
-            .padding(horizontal = 20.dp, vertical = 10.dp)
+            .padding(horizontal = 20.dp, vertical = 10.dp)    // 가장자리 여백
     ) {
-        // Search bar + Bookmark + Notification icons
+        // Search bar + Bookmark + Notification icons 수평 정렬
         Row(
+            // Row 안에 들어가는 항목들을 세로 방향(위–아래 기준)으로 가운데 정렬
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth()    // 최대 width 사용
         ) {
             // Search bar
-            OutlinedTextField(
+            OutlinedTextField(    // 검색창 컴포넌트
                 value = query,
+                // 사용자가 글자를 입력할 때마다 콜백이 호출되고 it에 새로운 텍스트가 들어옴,
+                // 그걸 query에 다시 넣어서 상태를 업데이트함
                 onValueChange = { query = it },
+
+                // 아무것도 입력되지 않았을 때 안내 문구, 기본 연한 회색
                 placeholder = { Text("검색어를 입력하세요.") },
+
+                // 텍스트 필드 왼쪽(앞쪽)에 들어갈 아이콘 지정
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Search,
@@ -65,15 +88,30 @@ fun HomeScreen(
                         tint = Color.DarkGray
                     )
                 },
+
+                // 입력이 한 줄만 가능하게 함, 엔터를 쳐도 줄바꿈 X 한 줄에 계속 입력
                 singleLine = true,
+//                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+//                keyboardActions = KeyboardActions(
+//                    onSearch = {
+//                        keyboard?.hide()
+//                        weatherViewModel.search(query.trim())
+//                    }
+//                ),
+
                 modifier = Modifier
                     .width(245.dp)
                     .height(56.dp),
                 shape = RoundedCornerShape(20.dp),
                 colors = TextFieldDefaults.colors(
+                    // 선택되었을 때 배경색
                     focusedContainerColor = Color(0xFFF2F2F2),
+                    // 선택 안 되었을 때 배경색
                     unfocusedContainerColor = Color(0xFFF2F2F2),
+                    // 비활성화 상태 배경색
                     disabledContainerColor = Color(0xFFF2F2F2),
+
+                    // 밑줄을 모두 투명으로 해서 보이지 않게 만듦
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
                     disabledIndicatorColor = Color.Transparent
@@ -91,7 +129,8 @@ fun HomeScreen(
                 modifier = Modifier
                     .size(56.dp)
                     .padding(10.dp)
-                    .clickable {
+                    .clip(CircleShape)
+                    .clickable {    // Icon 요소를 클릭할 수 있게 만들어 줌
                         println("Bookmark clicked")
                     }
             )
@@ -106,6 +145,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .size(56.dp)
                     .padding(10.dp)
+                    .clip(CircleShape)
                     .clickable {
                         println("Notifications clicked")
                     }
@@ -132,6 +172,7 @@ fun HomeScreen(
                         verticalArrangement = Arrangement.Center,
                         modifier = Modifier
                             .width(100.dp)
+                            .padding(5.dp)
                     ){
                         Text(
                             text = "출국까지",
@@ -149,10 +190,17 @@ fun HomeScreen(
 
                     Spacer(modifier = Modifier.width(30.dp))
 
-                    WeatherPreviewCardWithApi(
-                        city = "Sapporo,jp",
+                    // composable이 처음 등장할 때 딱 1번 실행하도록 보장
+                    LaunchedEffect(Unit) {
+                        weatherViewModel.load("Sapporo,jp")
+                    }
+
+                    WeatherPreviewCard(
+                        temperature = weatherViewModel.temperature ?: "...",
                         imageRes = R.drawable.sapporo,
+                        iconRes = weatherViewModel.iconCode?.let { mapWeatherIcon(it) },
                         onClick = {
+                            // 누르면 해당 페이지로 이동
                             navController.navigate("weather")
                         }
                     )
@@ -163,8 +211,9 @@ fun HomeScreen(
                 // 예정된 여행 >
                 Button(
                     onClick = { navController.navigate("plans") },
+                    shape = RoundedCornerShape(20.dp),
                     modifier = Modifier
-                        .fillMaxWidth(),
+                        .width(125.dp),
 
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color.Transparent,
@@ -175,64 +224,11 @@ fun HomeScreen(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .width(110.dp)
                     ) {
                         Text(
-                            text = "예정된 여행",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        Spacer(modifier = Modifier.width(3.dp))
-
-                        Icon(
-                            imageVector = Icons.Rounded.ArrowForwardIos,
-                            contentDescription = "Arrow Icon",
-                            tint = Color.Black,
-                            modifier = Modifier
-                                .size(20.dp)
-                                .offset(y = 1.5.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(3.dp))
-
-                TravelPlanCard(
-                    cityName = "삿포로",
-                    flagText = "\uD83C\uDDEF\uD83C\uDDF5",          // 🇯🇵
-                    imageRes = R.drawable.sapporo
-                )
-
-                Spacer(modifier = Modifier.height(5.dp))
-
-                TravelPlanCard(
-                    cityName = "런던",
-                    flagText = "\uD83C\uDDEC\uD83C\uDDE7",          // 🇬🇧
-                    imageRes = R.drawable.london
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // 짐 체크리스트 >
-                Button(
-                    onClick = { navController.navigate("checklist") },
-                    modifier = Modifier
-                        .fillMaxWidth(),
-
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Transparent,
-                        contentColor = Color.Black
-                    ),
-
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "짐 체크리스트",
+                            text = " 예정된 여행",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -249,13 +245,103 @@ fun HomeScreen(
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(3.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(270.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .clickable { navController.navigate("plans") }
+                        .background(Color(0xFFF5F5F5))
+                        .padding(10.dp)
+                ) {
+                    // 스크롤 가능
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        item {
+                            TravelPlanCard(
+                                cityName = "삿포로",
+                                flagText = "\uD83C\uDDEF\uD83C\uDDF5",
+                                imageRes = R.drawable.sapporo
+                            )
+                        }
+
+                        item {
+                            TravelPlanCard(
+                                cityName = "런던",
+                                flagText = "\uD83C\uDDEC\uD83C\uDDE7",
+                                imageRes = R.drawable.london
+                            )
+                        }
+
+                        item {
+                            TravelPlanCard(
+                                cityName = "뉴욕",
+                                flagText = "\uD83C\uDDFA\uD83C\uDDF8",
+                                imageRes = R.drawable.newyork
+                            )
+                        }
+                    }
+                }
+
+                // 짐 체크리스트 >
+                Button(
+                    onClick = { navController.navigate("checklist") },
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier
+                        .width(140.dp),
+
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.Transparent,
+                        contentColor = Color.Black
+                    ),
+
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .width(137.dp)
+                    ) {
+                        Text(
+                            text = "  짐 체크리스트",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Spacer(modifier = Modifier.width(3.dp))
+
+                        Icon(
+                            imageVector = Icons.Rounded.ArrowForwardIos,
+                            contentDescription = "Arrow Icon",
+                            tint = Color.Black,
+                            modifier = Modifier
+                                .size(20.dp)
+                                .offset(y = 1.dp)
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(1.dp))
 
-                ChecklistHintCard(
-                    text = "빠진 짐은 없는지 확인해 볼까요?",
+                Box(
                     modifier = Modifier
-                        .padding(top = 4.dp)
-                )
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .clickable(
+                            onClick = { navController.navigate("checklist") }
+                        )
+                ) {
+                    ChecklistHintCard(
+                        text = "빠진 짐은 없는지 확인해 볼까요?",
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
@@ -274,7 +360,7 @@ fun HomeScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "오늘의 문장",
+                                text = "  오늘의 문장",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -299,7 +385,7 @@ fun HomeScreen(
 
 @Composable
 fun WeatherPreviewCardWithApi(
-    city: String,          // 예: "Sapporo,jp"
+    city: String,   // 예: "Sapporo,jp"
     imageRes: Int,
     onClick: () -> Unit
 ) {
@@ -323,18 +409,16 @@ fun WeatherPreviewCardWithApi(
         }
     }
 
-    val showTemp = when {
-        error != null      -> "-"
-        temp == null       -> "..."
-        else               -> temp!!
-    }
-
     val iconRes = iconCode?.let { mapWeatherIcon(it) }
 
     WeatherPreviewCard(
-        temperature = showTemp,
+        temperature = when {
+            error != null      -> "--°C"
+            temp == null -> "..."
+            else -> temp!!
+        },
         imageRes = imageRes,
-        iconRes = iconRes,  // ⭐ 아이콘 전달 (추가)
+        iconRes = iconRes,
         onClick = onClick
     )
 }
@@ -343,7 +427,7 @@ fun WeatherPreviewCardWithApi(
 fun WeatherPreviewCard(
     temperature: String,
     imageRes: Int,
-    iconRes: Int?,      // ⭐ 추가됨!
+    iconRes: Int?,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
@@ -378,7 +462,7 @@ fun WeatherPreviewCard(
                 Icon(
                     painter = painterResource(id = iconRes),
                     contentDescription = "weather icon",
-                    tint = Color.Unspecified,      // 💡 API 아이콘 색 그대로!
+                    tint = Color.Unspecified,
                     modifier = Modifier.size(40.dp)
                 )
             }
@@ -398,17 +482,17 @@ fun WeatherPreviewCard(
 fun TravelPlanCard(
     cityName: String,
     flagText: String,
-    imageRes: Int,              // 배경 이미지
+    imageRes: Int,
     modifier: Modifier = Modifier
 ) {
     Box(
         modifier = modifier
-            .fillMaxWidth()
-            .height(125.dp)
-            .clip(RoundedCornerShape(24.dp))
+            .width(360.dp)
+            .height(110.dp)
+            .clip(RoundedCornerShape(20.dp))
             .background(Color(0xFFF5F5F5))
     ) {
-        // 🔹 배경 이미지
+        // 배경 이미지
         Image(
             painter = painterResource(id = imageRes),
             contentDescription = "$cityName image",

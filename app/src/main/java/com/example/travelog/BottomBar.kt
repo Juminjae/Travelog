@@ -33,6 +33,7 @@ fun BottomBar(
 
     val effectiveRoute = when (currentRoute) {
         "weather" -> BottomNavItem.Home.route   // 날씨 화면 = 홈 탭
+        "checklist" -> BottomNavItem.Home.route  // 체크리스트 화면 = 맵 탭
         else -> currentRoute
     }
 
@@ -46,7 +47,7 @@ fun BottomBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         items.forEach { item ->
-            val selected = item.route == effectiveRoute   // ✅ route로 선택 여부 판단
+            val selected = item.route == effectiveRoute
             val interactionSource = remember { MutableInteractionSource() }
 
             Box(
@@ -64,7 +65,7 @@ fun BottomBar(
                 Icon(
                     painter = if (selected) item.selectedIcon() else item.unselectedIcon(),
                     contentDescription = item.label,
-                    tint = Color.Unspecified,  // 아이콘 원본 색 그대로 쓰고 싶으면
+                    tint = Color.Unspecified,
                     modifier = Modifier.size(35.dp)
                 )
             }

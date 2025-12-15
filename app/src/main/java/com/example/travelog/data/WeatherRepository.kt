@@ -11,9 +11,7 @@ object WeatherRepository {
 
     val API_KEY = BuildConfig.WEATHER_API_KEY
 
-    /**
-     * 도시 이름 → (lat, lon) 변환
-     */
+    // 도시 이름 → (lat, lon) 변환
     suspend fun getLocation(city: String): Pair<Double, Double>? {
         val response = RetrofitClient.weatherApi.getGeoLocation(
             city = city,          // 예: "Sapporo,jp"
@@ -25,26 +23,22 @@ object WeatherRepository {
         return if (response.isNotEmpty()) {
             val data = response[0]
             val result = data.lat to data.lon
-            println("✅ GEO RESULT = $result")
             result   // (lat, lon)
         } else {
-            println("❌ GEO LOOKUP FAILED: empty list for city = $city")
             null
         }
     }
 
-    /**
-     * 시간별 / 일별 UI 데이터 로드
-     */
+    /* 시간별 일별 UI 데이터 로드 */
     suspend fun loadHourlyAndDaily(city: String): Pair<List<HourlyWeatherUi>, List<DailyWeatherUi>> {
 
         val forecast = RetrofitClient.weatherApi.getForecast(city, API_KEY)
 
-        // 3시간 간격 리스트 → 앞 7개를 시간별 카드용
-        val hourly = forecast.list.take(7).mapIndexed { index, item ->
-            val hour = java.util.Calendar.getInstance().apply {
+        // 3시간 간격 리스트 → 앞 10개를 시간별 카드용
+        val hourly = forecast.list.take(10).mapIndexed { index, item ->
+            val hour = Calendar.getInstance(TimeZone.getTimeZone("Asia/Seoul")).apply {
                 timeInMillis = item.dt * 1000L
-            }.get(java.util.Calendar.HOUR_OF_DAY)
+            }.get(Calendar.HOUR_OF_DAY)
 
             HourlyWeatherUi(
                 label = if (index == 0) "지금" else "${hour}시",
@@ -69,7 +63,7 @@ object WeatherRepository {
                 dayLabel = dayLabel,
                 minTempText = "${temps.minOrNull()?.toInt()}°C",
                 maxTempText = "${temps.maxOrNull()?.toInt()}°C",
-                iconCode = entry.value.firstOrNull()?.weather?.firstOrNull()?.icon // ⭐ 수정
+                iconCode = entry.value.firstOrNull()?.weather?.firstOrNull()?.icon
             )
         }
 
