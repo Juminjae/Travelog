@@ -35,8 +35,6 @@ import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.ui.modifier.modifierLocalConsumer
 import androidx.compose.ui.res.painterResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -73,7 +71,7 @@ fun ChecklistScreen(
                     newItemText = text },
                 shape = RoundedCornerShape(20.dp),
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("어떤 짐을 챙겨 볼까요?") }
+                placeholder = { Text(" 어떤 짐을 챙겨 볼까요?") }
             )
 
             Spacer(modifier = Modifier.width(8.dp))
@@ -132,7 +130,7 @@ fun ChecklistRow(
     onRemoveClick: () -> Unit
 ) {
     // 체크 상태에 따른 색상 변경
-    val bgColor = if (item.isChecked) Color.Gray else Color.LightGray
+    val bgColor = if (item.isChecked) Color(0xFFA7C7E7) else Color(0xFFE3F2FD)
     val textColor = Color.Black
 
     Box(

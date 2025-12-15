@@ -15,7 +15,7 @@ fun MyPageScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFFFEBEE)),   // 연한 핑크
+            .background(Color(0xFFFFEBEE)),
         contentAlignment = Alignment.Center
     ) {
         Text(text = "마이페이지 화면 👤", fontSize = 24.sp, color = Color.Black)

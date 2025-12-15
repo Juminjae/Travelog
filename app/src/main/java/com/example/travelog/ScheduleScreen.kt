@@ -15,7 +15,7 @@ fun ScheduleScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF3E5F5)),   // 연한 보라
+            .background(Color(0xFFF3E5F5)),
         contentAlignment = Alignment.Center
     ) {
         Text(text = "일정 화면 🗓️", fontSize = 24.sp, color = Color.Black)
