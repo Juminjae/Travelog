@@ -88,12 +88,12 @@ fun ArchiveScreen(
     fun commentsOf(photoId: String): SnapshotStateList<PhotoComment> =
         commentMap.getOrPut(photoId) { mutableStateListOf() }
 
-    // 도시별 사진 목록 (더미 + 사용자가 추가한 사진 Uri)
+    // 도시별 사진 목록
     val photoStore = remember {
         mutableStateMapOf<String, SnapshotStateList<ArchivePhotoItem>>()
     }
 
-    // 최초 1회 더미 데이터 주입
+    // 더미 목록
     LaunchedEffect(Unit) {
         if (photoStore.isEmpty()) {
             photoStore["빈"] = mutableStateListOf<ArchivePhotoItem>().apply {
@@ -167,7 +167,7 @@ fun ArchiveScreen(
             )
         }
 
-        // ===== Overlay =====
+        // 오버레이
         val currentComments: SnapshotStateList<PhotoComment> = selectedPhotoId?.let { commentsOf(it) } ?: mutableStateListOf()
         ArchivePhotoOverlay(
             visible = overlayOpen,

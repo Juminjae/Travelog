@@ -16,9 +16,9 @@ data class ArchivedTrip(
 data class ArchivePhoto(
     @DocumentId val photoId: String = "",
     val tripId: String = "",
-    val imageUrl: String = "",  // Firebase Storage 다운로드 URL
-    val createdAt: Long = 0L,     // millis (간단히 Long) / Firestore Timestamp로 바꿔도 됨
-    val order: Int = 0,           // 필요하면 정렬용
+    val imageUrl: String = "",
+    val createdAt: Long = 0L,
+    val order: Int = 0,
 )
 
 //사진 오버레이 - 댓글
@@ -27,7 +27,7 @@ data class PhotoComment(
     val photoId: String = "",
     val authorName: String = "",
     val text: String = "",
-    val createdAt: Long = 0L, // millis
+    val createdAt: Long = 0L,
 )
 
 

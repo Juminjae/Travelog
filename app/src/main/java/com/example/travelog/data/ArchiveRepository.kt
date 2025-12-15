@@ -1,4 +1,4 @@
-package com.example.travelog.data.network
+package com.example.travelog.data
 
 import com.example.travelog.data.model.ArchivePhoto
 import com.example.travelog.data.model.ArchivedTrip
@@ -10,24 +10,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
-/**
- * Firestore 구조(권장)
- * - trips (collection)
- *   - {tripId} (document)
- *     - fields: cityName, countryName, isCompleted, startDate, endDate ...
- *     - photos (sub-collection)
- *       - {photoId} (document)
- *         - fields: imageUrl, createdAt, order ... (+ 필요시 tripId/photoId)
- *         - comments (sub-collection)
- *           - {commentId} (document)
- *             - fields: authorName, text, createdAt ...
- */
+//파이어베이스 구조
 class ArchiveRepository(
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
 ) {
     private val tripsCol = db.collection("trips")
 
-    /** 지난 여행(완료된 여행) 목록 */
+    //지난 여행 목록(완료)
     suspend fun getArchivedTrips(): List<ArchivedTrip> {
         return tripsCol
             .whereEqualTo("isCompleted", true)
@@ -36,10 +25,8 @@ class ArchiveRepository(
             .toObjects(ArchivedTrip::class.java)
     }
 
-    /** 특정 여행(tripId)의 사진 목록 */
+    //특정 여행
     suspend fun getPhotos(tripId: String): List<ArchivePhoto> {
-        // 정렬 기준은 너희가 Firestore에 넣은 필드에 맞춰서 하나만 쓰면 돼.
-        // (order가 없으면 createdAt으로 바꾸기)
         return tripsCol
             .document(tripId)
             .collection("photos")
@@ -49,7 +36,7 @@ class ArchiveRepository(
             .toObjects(ArchivePhoto::class.java)
     }
 
-    /** 댓글 실시간 구독(오버레이에서 사용) */
+    //댓글
     fun observeComments(tripId: String, photoId: String): Flow<List<PhotoComment>> = callbackFlow {
         val reg: ListenerRegistration = tripsCol
             .document(tripId)
@@ -71,7 +58,7 @@ class ArchiveRepository(
         awaitClose { reg.remove() }
     }
 
-    /** 댓글 추가 */
+    //댓글 추가
     suspend fun addComment(
         tripId: String,
         photoId: String,
@@ -83,7 +70,7 @@ class ArchiveRepository(
             .collection("photos")
             .document(photoId)
             .collection("comments")
-            .document() // 자동 ID
+            .document()
 
         val comment = PhotoComment(
             commentId = commentRef.id,
@@ -96,4 +83,3 @@ class ArchiveRepository(
         commentRef.set(comment).await()
     }
 }
-
