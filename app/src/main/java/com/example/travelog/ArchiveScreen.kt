@@ -76,7 +76,7 @@ fun ArchiveScreen(
     var expanded by remember { mutableStateOf(false) }
     var selectedCity by remember { mutableStateOf(cityList.first()) }
 
-    // --- overlay state ---
+    // 오버레아 상태
     var overlayOpen by remember { mutableStateOf(false) }
     var selectedPhotoId by remember { mutableStateOf<String?>(null) }
     var commentInput by remember { mutableStateOf("") }
