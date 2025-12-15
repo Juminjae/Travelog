@@ -122,9 +122,8 @@ fun ArchivePhotoOverlay(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(10.dp)
-                            .size(32.dp)
+                            .size(40.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.65f))
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,

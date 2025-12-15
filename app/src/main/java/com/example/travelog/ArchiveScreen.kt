@@ -54,8 +54,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -135,12 +139,16 @@ fun ArchiveScreen(
                 onNotificationClick = { /* 알림 연결 */ }
             )
 
+            Spacer(modifier = Modifier.height(2.dp))
+
             ArchiveTabs(
                 selectedTabIndex = selectedTabIndex,
                 onSelectTab = { selectedTabIndex = it }
             )
 
             HorizontalDivider(thickness = 1.dp, color = Color(0xFFE5E7EB))
+
+            Spacer(modifier = Modifier.height(14.dp))
 
             ArchiveCityDropdown(
                 cityList = cityList,
@@ -207,29 +215,39 @@ private fun ArchiveTopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 18.dp),
+            .padding(horizontal = 20.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = "내 여행",
-            fontSize = 28.sp,
-            color = Color(0xFF111827)
+            color = Color.Black,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold
         )
-        Spacer(modifier = Modifier.weight(1f))
-        IconButton(onClick = onBookmarkClick) {
-            Icon(
-                imageVector = Icons.Filled.Bookmark,
-                contentDescription = "저장",
-                tint = Color(0xFF111827)
-            )
-        }
-        IconButton(onClick = onNotificationClick) {
-            Icon(
-                imageVector = Icons.Filled.Notifications,
-                contentDescription = "알림",
-                tint = Color(0xFF111827)
-            )
-        }
+        Spacer(modifier = Modifier.width(180.dp))
+
+
+        Icon(
+            painter = painterResource(id = R.drawable.icon_bookmark),
+            contentDescription = "저장",
+            tint = Color.Black,
+            modifier = Modifier
+                .size(56.dp)
+                .padding(10.dp)
+                .clickable { println("Bookmark clicked") }
+        )
+
+        Spacer(modifier = Modifier.width(1.dp))
+
+        Icon(
+            painter = painterResource(id = R.drawable.icon_notification),
+            contentDescription = "알림",
+            tint = Color.Black,
+            modifier = Modifier
+                .size(56.dp)
+                .padding(10.dp)
+                .clickable { println("Bookmark clicked") }
+        )
     }
 }
 
@@ -238,40 +256,48 @@ private fun ArchiveTabs(
     selectedTabIndex: Int,
     onSelectTab: (Int) -> Unit,
 ) {
+    val tabs = listOf("예정된 여행", "지난 여행")
+
+    val indicatorHeight = 8.dp
+    val indicatorWidth = 22.dp
+    val corner = 5.dp
+
     ScrollableTabRow(
         selectedTabIndex = selectedTabIndex,
         edgePadding = 0.dp,
         containerColor = Color.White,
+        divider = {},
         indicator = { tabPositions ->
-            val currentTab = tabPositions[selectedTabIndex]
-            val indicatorHeight = 6.dp
-            val indicatorWidth = 20.dp
-            val corner = 4.dp
-            val indicatorColor = Color.Black
-            val offsetX = currentTab.left + (currentTab.width - indicatorWidth) / 2
+            val current = tabPositions[selectedTabIndex]
+            val offsetX = current.left + (current.width - indicatorWidth) / 2
 
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .wrapContentSize(Alignment.BottomStart)
-                    .offset(x = offsetX, y = 0.dp)
+                    .offset(x = offsetX)
                     .width(indicatorWidth)
                     .height(indicatorHeight)
                     .clip(RoundedCornerShape(topStart = corner, topEnd = corner))
-                    .background(indicatorColor)
+                    .background(Color.Black)
+            )
+        },
+//        divider = {} // 필요 없으면 제거
+    ) {
+        tabs.forEachIndexed { index, title ->
+            Tab(
+                selected = selectedTabIndex == index,
+                onClick = { onSelectTab(index) },
+                text = {
+                    Text(
+                        text = title,
+                        fontSize = 16.sp,
+                        fontWeight = if (selectedTabIndex == index) FontWeight.ExtraBold else FontWeight.Normal,
+                        color = if (selectedTabIndex == index) Color.Black else Color.Gray
+                    )
+                }
             )
         }
-    ) {
-        Tab(
-            selected = selectedTabIndex == 0,
-            onClick = { onSelectTab(0) },
-            text = { Text("예정된 여행") }
-        )
-        Tab(
-            selected = selectedTabIndex == 1,
-            onClick = { onSelectTab(1) },
-            text = { Text("지난 여행") }
-        )
     }
 }
 
@@ -286,7 +312,7 @@ private fun ArchiveCityDropdown(
 ) {
     Box(
         modifier = Modifier
-            .padding(start = 20.dp, top = 5.dp, bottom = 15.dp)
+            .padding(start = 25.dp, top = 5.dp, bottom = 15.dp)
             .wrapContentSize(Alignment.TopStart)
     ) {
         Row(
@@ -297,8 +323,9 @@ private fun ArchiveCityDropdown(
         ) {
             Text(
                 text = selectedCity,
-                fontSize = 22.sp,
-                color = Color(0xFF111827)
+                fontSize = 18.sp,
+                color = Color.Black,
+                fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.width(4.dp))
             Icon(
@@ -372,7 +399,7 @@ private fun ArchivePhotoGrid(
                     .fillMaxWidth()
                     .aspectRatio(3f / 4f)
                     .background(Color.White, RoundedCornerShape(6.dp))
-                    .border(1.dp, Color(0xFFE5E7EB), RoundedCornerShape(6.dp))
+                    .border(1.dp, Color(0xFFE5E7EB), RoundedCornerShape(15.dp))
                     .clickable { onPlusClick() },
                 contentAlignment = Alignment.Center
             ) {
