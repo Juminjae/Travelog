@@ -1,13 +1,17 @@
 package com.example.travelog
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -18,13 +22,14 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
@@ -42,6 +47,7 @@ import com.example.travelog.data.model.mapWeatherIcon
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import com.example.travelog.data.network.RetrofitClient
 import com.example.travelog.data.WeatherRepository
 
@@ -151,7 +157,8 @@ fun WeatherScreen(
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
         ) {
             WeatherCountryTabs(
                 tabs = tabCities.map { it.first },
@@ -207,14 +214,14 @@ fun WeatherScreen(
                     Icon(
                         painter = painterResource(id = iconRes),
                         contentDescription = "현재 날씨 아이콘",
+                        tint = Color.Unspecified,
                         modifier = Modifier
                             .size(60.dp)
                             .shadow(
-                                elevation = 12.dp,
-                                shape = CircleShape,
+                                elevation = 50.dp,
+                                shape = RoundedCornerShape(20.dp),
                                 clip = false
-                            ),
-                        tint = Color.Unspecified
+                            )
                     )
                 }
 
@@ -274,7 +281,7 @@ fun WeatherCountryTabs(
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .padding(end = 18.dp)
+                    .weight(1f)
                     .clickable { onSelect(index) }
             ) {
                 Text(
@@ -378,10 +385,18 @@ fun TodayHourlyWeatherCard(
     }
 }
 
+private fun String.toTempInt(): Int {
+    val num = Regex("-?\\d+").find(this)?.value ?: "0"
+    return num.toInt()
+}
+
 @Composable
 fun WeeklyWeatherCard(
     items: List<DailyWeatherUi>
 ) {
+    val weekMin = items.minOfOrNull { it.minTempText.toTempInt() } ?: 0
+    val weekMax = items.maxOfOrNull { it.maxTempText.toTempInt() } ?: 0
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -407,7 +422,9 @@ fun WeeklyWeatherCard(
                     dayLabel = item.dayLabel,
                     minTemp = item.minTempText,
                     maxTemp = item.maxTempText,
-                    iconCode = item.iconCode
+                    iconCode = item.iconCode,
+                    weekMin = weekMin,
+                    weekMax = weekMax
                 )
                 if (index != items.lastIndex) {
                     Spacer(modifier = Modifier.height(6.dp))
@@ -417,13 +434,26 @@ fun WeeklyWeatherCard(
     }
 }
 
+@SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 private fun DayRow(
     dayLabel: String,
     minTemp: String,
     maxTemp: String,
-    iconCode: String?
+    iconCode: String?,
+    weekMin: Int,
+    weekMax: Int
 ) {
+    val dayMin = minTemp.toTempInt()
+    val dayMax = maxTemp.toTempInt()
+
+    // 0으로 나누기 방지 (주간 최저==최고인 특수 케이스)
+    val span = (weekMax - weekMin).coerceAtLeast(1)
+
+    // 0f~1f 사이로 보정
+    val startFrac = ((dayMin - weekMin).toFloat() / span).coerceIn(0f, 1f)
+    val widthFrac = ((dayMax - dayMin).toFloat() / span).coerceIn(0f, 1f)
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -456,33 +486,44 @@ private fun DayRow(
             fontWeight = FontWeight.Medium,
             color = Color(0xFF6E6E6E),
             textAlign = TextAlign.End,
-            modifier = Modifier.width(30.dp)
+            modifier = Modifier.width(34.dp)
         )
 
-        Spacer(modifier = Modifier.weight(1f))
-        Spacer(modifier = Modifier.height(30.dp))
+        Spacer(modifier = Modifier.width(10.dp))
 
-        Box(
+    // ✅ 바는 남은 공간을 다 쓰게 weight(1f)만 여기 한 번 사용
+        BoxWithConstraints(
             modifier = Modifier
-                .width(200.dp)
-                .height(6.dp)
-                .background(Color(0xFFD6D6D6), RoundedCornerShape(999.dp))
+                .weight(1f)
+                .height(6.dp)   // 날씨앱처럼 얇게(원하면 8.dp로)
         ) {
+            val trackShape = RoundedCornerShape(999.dp)
+
+            // 전체 트랙(회색)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFFD6D6D6), trackShape)
+            )
+
+            // 그날 범위(파란색): 시작 위치 + 길이
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .fillMaxWidth(0.5f)
-                    .background(Color(0xFFB3D9F5), RoundedCornerShape(999.dp))
+                    .fillMaxWidth(widthFrac)
+                    .offset(x = maxWidth * startFrac)
+                    .background(Color(0xFFB3D9F5), trackShape)
             )
         }
 
-        Spacer(modifier = Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(10.dp))
 
         Text(
             text = maxTemp,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
-            modifier = Modifier.width(30.dp),
+            color = Color(0xFF6E6E6E),
+            modifier = Modifier.width(34.dp),
             textAlign = TextAlign.End
         )
     }

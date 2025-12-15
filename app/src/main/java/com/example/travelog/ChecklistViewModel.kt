@@ -17,8 +17,9 @@ class ChecklistViewModel : ViewModel() {
                 ChecklistItem(1, "여권"),
                 ChecklistItem(2, "비행기 티켓 / e-티켓"),
                 ChecklistItem(3, "지갑 (카드, 현금)"),
-                ChecklistItem(4, "충전기 / 멀티탭"),
-                ChecklistItem(5, "보조배터리")
+                ChecklistItem(4, "충전기"),
+                ChecklistItem(5, "멀티탭"),
+                ChecklistItem(6, "보조배터리")
             )
         )
     }

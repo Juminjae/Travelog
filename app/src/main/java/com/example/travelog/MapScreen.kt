@@ -15,7 +15,7 @@ fun MapScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFE3F2FD)),   // 연한 파랑
+            .background(Color(0xFFE3F2FD)),
         contentAlignment = Alignment.Center
     ) {
         Text(text = "지도 화면 🗺️", fontSize = 24.sp, color = Color.Black)

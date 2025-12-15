@@ -15,7 +15,7 @@ fun ArchiveScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFE8F5E9)),   // 연한 초록
+            .background(Color(0xFFE8F5E9)),
         contentAlignment = Alignment.Center
     ) {
         Text(text = "아카이브 화면 📂", fontSize = 24.sp, color = Color.Black)
