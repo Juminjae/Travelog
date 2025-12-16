@@ -1,6 +1,7 @@
 package com.example.travelog
 
 import android.annotation.SuppressLint
+import android.app.Application
 import android.net.Uri
 import android.widget.ImageView
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -43,10 +44,9 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -58,17 +58,15 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.travelog.ArchivePhotoEntity
 import com.example.travelog.data.model.PhotoComment
-
-data class ArchivePhotoItem(
-    val id: String,
-    val uri: String? = null
-)
 
 @SuppressLint("UnrememberedMutableState")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,7 +76,23 @@ fun ArchiveScreen(
 ) {
     var selectedTabIndex by rememberSaveable { mutableStateOf(1) }
     var expanded by remember { mutableStateOf(false) }
-    var selectedCity by remember { mutableStateOf(cityList.first()) }
+
+    val context = LocalContext.current
+    val app = context.applicationContext as Application
+    val vm: ArchiveViewModel = viewModel(
+        factory = ViewModelProvider.AndroidViewModelFactory.getInstance(app)
+    )
+
+
+    val selectedCity by vm.selectedCity.collectAsState()
+    val photoList by vm.photos.collectAsState()
+
+    LaunchedEffect(cityList) {
+        // ViewModel 기본 도시가 비어있으면 첫 도시로 맞춤
+        if (cityList.isNotEmpty() && selectedCity.isBlank()) {
+            vm.setSelectedCity(cityList.first())
+        }
+    }
 
     // 오버레아 상태
     var overlayOpen by remember { mutableStateOf(false) }
@@ -87,41 +101,18 @@ fun ArchiveScreen(
     var selectedPhotoUri by remember { mutableStateOf<String?>(null) }
 
     // 댓글(더미) — photoId별로 분리 저장
-    val commentMap = remember { mutableStateMapOf<String, SnapshotStateList<PhotoComment>>() }
+    val commentMap = remember { mutableStateMapOf<String, androidx.compose.runtime.snapshots.SnapshotStateList<PhotoComment>>() }
 
-    fun commentsOf(photoId: String): SnapshotStateList<PhotoComment> =
-        commentMap.getOrPut(photoId) { mutableStateListOf() }
-
-    // 도시별 사진 목록
-    val photoStore = remember {
-        mutableStateMapOf<String, SnapshotStateList<ArchivePhotoItem>>()
-    }
-
-    // 더미 목록
-    LaunchedEffect(Unit) {
-        if (photoStore.isEmpty()) {
-            photoStore["빈"] = mutableStateListOf<ArchivePhotoItem>().apply {
-                addAll(List(8) { ArchivePhotoItem(id = "VIN_${it + 1}") })
-            }
-            photoStore["런던"] = mutableStateListOf<ArchivePhotoItem>().apply {
-                addAll(List(6) { ArchivePhotoItem(id = "LDN_${it + 1}") })
-            }
-            photoStore["삿포로"] = mutableStateListOf<ArchivePhotoItem>().apply {
-                addAll(List(10) { ArchivePhotoItem(id = "SPK_${it + 1}") })
-            }
-        }
-    }
-
-    val photoList = photoStore.getOrPut(selectedCity) { mutableStateListOf() }
+    fun commentsOf(photoId: String): androidx.compose.runtime.snapshots.SnapshotStateList<PhotoComment> =
+        commentMap.getOrPut(photoId) { androidx.compose.runtime.mutableStateListOf() }
 
     // 갤러리(사진) 선택 런처
     val pickImageLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            // 선택된 사진을 현재 도시의 목록에 추가
-            val newId = "${selectedCity}_UP_${System.currentTimeMillis()}"
-            photoList.add(ArchivePhotoItem(id = newId, uri = uri.toString()))
+            // ✅ ViewModel을 통해 저장 (DB init/insert는 VM에서 처리)
+            vm.addUriPhoto(uri.toString())
         }
     }
 
@@ -156,7 +147,7 @@ fun ArchiveScreen(
                 expanded = expanded,
                 onToggleExpanded = { expanded = !expanded },
                 onSelectCity = { city ->
-                    selectedCity = city
+                    vm.setSelectedCity(city)
                     expanded = false
                 },
                 onDismiss = { expanded = false }
@@ -165,8 +156,24 @@ fun ArchiveScreen(
             ArchivePhotoGrid(
                 photoList = photoList,
                 onPhotoClick = { item ->
-                    selectedPhotoId = item.id
-                    selectedPhotoUri = item.uri
+                    selectedPhotoId = item.id.toString()
+
+                    // 오버레이는 String URI로 통일해서 넘김
+                    selectedPhotoUri = when {
+                        !item.uriString.isNullOrBlank() -> item.uriString
+                        !item.localResName.isNullOrBlank() -> {
+                            val resId = context.resources.getIdentifier(
+                                item.localResName,
+                                "drawable",
+                                context.packageName
+                            )
+                            if (resId != 0) {
+                                "android.resource://${context.packageName}/$resId"
+                            } else null
+                        }
+                        else -> null
+                    }
+
                     overlayOpen = true
                 },
                 onPlusClick = {
@@ -176,7 +183,7 @@ fun ArchiveScreen(
         }
 
         // 오버레이
-        val currentComments: SnapshotStateList<PhotoComment> = selectedPhotoId?.let { commentsOf(it) } ?: mutableStateListOf()
+        val currentComments: androidx.compose.runtime.snapshots.SnapshotStateList<PhotoComment> = selectedPhotoId?.let { commentsOf(it) } ?: androidx.compose.runtime.mutableStateListOf()
         ArchivePhotoOverlay(
             visible = overlayOpen,
             photoUri = selectedPhotoUri,
@@ -228,25 +235,25 @@ private fun ArchiveTopBar(
 
 
         Icon(
-            painter = painterResource(id = R.drawable.icon_bookmark),
+            imageVector = Icons.Filled.Bookmark,
             contentDescription = "저장",
             tint = Color.Black,
             modifier = Modifier
                 .size(56.dp)
                 .padding(10.dp)
-                .clickable { println("Bookmark clicked") }
+                .clickable { onBookmarkClick() }
         )
 
         Spacer(modifier = Modifier.width(1.dp))
 
         Icon(
-            painter = painterResource(id = R.drawable.icon_notification),
+            imageVector = Icons.Filled.Notifications,
             contentDescription = "알림",
             tint = Color.Black,
             modifier = Modifier
                 .size(56.dp)
                 .padding(10.dp)
-                .clickable { println("Bookmark clicked") }
+                .clickable { onNotificationClick() }
         )
     }
 }
@@ -282,7 +289,6 @@ private fun ArchiveTabs(
                     .background(Color.Black)
             )
         },
-//        divider = {} // 필요 없으면 제거
     ) {
         tabs.forEachIndexed { index, title ->
             Tab(
@@ -352,8 +358,8 @@ private fun ArchiveCityDropdown(
 
 @Composable
 private fun ArchivePhotoGrid(
-    photoList: List<ArchivePhotoItem>,
-    onPhotoClick: (ArchivePhotoItem) -> Unit,
+    photoList: List<ArchivePhotoEntity>,
+    onPhotoClick: (ArchivePhotoEntity) -> Unit,
     onPlusClick: () -> Unit,
 ) {
     LazyVerticalGrid(
@@ -365,6 +371,16 @@ private fun ArchivePhotoGrid(
         verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
         items(photoList) { item ->
+            val ctx = LocalContext.current
+            val showUri: String? = when {
+                !item.uriString.isNullOrBlank() -> item.uriString
+                !item.localResName.isNullOrBlank() -> {
+                    val resId = ctx.resources.getIdentifier(item.localResName, "drawable", ctx.packageName)
+                    if (resId != 0) "android.resource://${ctx.packageName}/$resId" else null
+                }
+                else -> null
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -375,20 +391,25 @@ private fun ArchivePhotoGrid(
                     .clickable { onPhotoClick(item) },
                 contentAlignment = Alignment.Center
             ) {
-                if (item.uri != null) {
+                if (showUri != null) {
                     AndroidView(
                         modifier = Modifier.fillMaxSize(),
-                        factory = { ctx ->
-                            ImageView(ctx).apply {
-                                scaleType = ImageView.ScaleType.CENTER_CROP
-                            }
+                        factory = { c ->
+                            ImageView(c).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
                         },
                         update = { iv ->
-                            iv.setImageURI(Uri.parse(item.uri))
+                            val u = Uri.parse(showUri)
+                            if (showUri.startsWith("android.resource://")) {
+                                // resource uri: 마지막 segment가 resId
+                                val resId = showUri.substringAfterLast('/').toIntOrNull()
+                                if (resId != null) iv.setImageResource(resId) else iv.setImageURI(u)
+                            } else {
+                                iv.setImageURI(u)
+                            }
                         }
                     )
                 } else {
-                    Text(text = item.id, color = Color(0xFF6B7280), fontSize = 12.sp)
+                    Text(text = "#${item.id}", color = Color(0xFF6B7280), fontSize = 12.sp)
                 }
             }
         }
