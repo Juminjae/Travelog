@@ -37,5 +37,11 @@ fun MainNavHost(
         composable("checklist") {
             ChecklistScreen()
         }
+        composable("plans") {
+            TravelApp()
+        }
+//        composable("budget") {
+//            TripBudgetScreen()
+//        }
     }
 }
