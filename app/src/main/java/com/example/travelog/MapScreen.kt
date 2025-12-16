@@ -1,10 +1,13 @@
 package com.example.travelog
 
+import android.content.Context
 import android.location.Geocoder
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -16,6 +19,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -27,33 +32,46 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
-
+data class TripPlan(
+    val startDate: LocalDate,
+    val endDate: LocalDate,
+    val destination: String
+)
+/* ViewModel */
+class TripViewModel : ViewModel() {
+    var tripPlan by mutableStateOf<TripPlan?>(null)
+        private set
+    fun createTrip(start: LocalDate, end: LocalDate, destination: String) {
+        tripPlan = TripPlan(start, end, destination)
+    }
+    fun totalDays(): Int {
+        val t = tripPlan ?: return 0
+        return ChronoUnit.DAYS.between(t.startDate, t.endDate).toInt() + 1
+    }
+}
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MapScreen() {
+fun MapScreen(
+    tripViewModel: TripViewModel = viewModel()
+) {
     val context = LocalContext.current
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(
-            LatLng(37.5665, 126.9780), // 서울
+            LatLng(37.5665, 126.9780),
             10f
         )
     }
-    var showBottomSheet by remember { mutableStateOf(false) }
-    var targetCity by remember { mutableStateOf<String?>(null) }
 
-    var tripStartDate by remember { mutableStateOf<LocalDate?>(null) }
-    var tripEndDate by remember { mutableStateOf<LocalDate?>(null) }
+    var showTripBottomSheet by remember { mutableStateOf(false) }
     var selectedDay by remember { mutableStateOf(1) }
 
-    /* 지도 이동 사이드이펙트 */
+    val trip = tripViewModel.tripPlan
+    val totalDays = tripViewModel.totalDays()
 
-    LaunchedEffect(targetCity) {
-        if (!targetCity.isNullOrBlank()) {
-            moveMapToCity(
-                context = context,
-                city = targetCity!!,
-                cameraPositionState = cameraPositionState
-            )
+    /* 여행지 기준 지도 이동 */
+    LaunchedEffect(trip?.destination) {
+        trip?.destination?.let {
+            moveMapToCity(context, it, cameraPositionState)
         }
     }
 
@@ -62,7 +80,6 @@ fun MapScreen() {
             .fillMaxSize()
             .background(Color.White)
     ) {
-        /* 타이틀 */
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -79,13 +96,12 @@ fun MapScreen() {
                 modifier = Modifier
                     .size(36.dp)
                     .border(1.dp, Color.Black, CircleShape)
-                    .clickable { showBottomSheet = true },
+                    .clickable { showTripBottomSheet = true },
                 contentAlignment = Alignment.Center
             ) {
-                Text("+", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("+", fontSize = 16.sp)
             }
         }
-        /* 지도 */
         Box(
             modifier = Modifier
                 .padding(horizontal = 20.dp)
@@ -97,31 +113,78 @@ fun MapScreen() {
                 cameraPositionState = cameraPositionState
             )
         }
-        /* Day 버튼 (지도 아래) */
-        if (tripStartDate != null && tripEndDate != null) {
+        /* ===== Day 버튼 ===== */
+        if (trip != null) {
             DayButtonRow(
-                startDate = tripStartDate!!,
-                endDate = tripEndDate!!,
+                totalDays = totalDays,
                 selectedDay = selectedDay,
                 onDayClick = { selectedDay = it }
             )
         }
+        /* 모든 Day 안내 문구  */
+        if (trip != null) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = "Day $selectedDay",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = " + 버튼을 눌러 여행 일정을 추가해보세요.",
+                    fontSize = 13.sp,
+                    color = Color.Gray
+                )
+            }
+        }
     }
-    /* 여행 일정 추가 BottomSheet */
-    if (showBottomSheet) {
+    /*  여행 일정 추가 BottomSheet */
+    if (showTripBottomSheet) {
         TravelAddBottomSheet(
-            onDismiss = { showBottomSheet = false },
+            onDismiss = { showTripBottomSheet = false },
             onSave = { start, end, destination ->
-                tripStartDate = start
-                tripEndDate = end
+                tripViewModel.createTrip(start, end, destination)
                 selectedDay = 1
-                targetCity = destination
-                showBottomSheet = false
+                showTripBottomSheet = false
             }
         )
     }
 }
-/* BottomSheet */
+/* Day 버튼 Row */
+@Composable
+fun DayButtonRow(
+    totalDays: Int,
+    selectedDay: Int,
+    onDayClick: (Int) -> Unit
+) {
+    LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(totalDays) { index ->
+            val day = index + 1
+
+            OutlinedButton(
+                onClick = { onDayClick(day) },
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor =
+                        if (day == selectedDay) Color(0xFFE5E5E5)
+                        else Color.Transparent
+                )
+            ) {
+                Text("Day $day")
+            }
+        }
+    }
+}
+/* 여행 일정 추가 BottomSheet */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TravelAddBottomSheet(
@@ -146,14 +209,11 @@ fun TravelAddBottomSheet(
             Text("여행 기간", fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                DateBox(startDate?.toSlashFormat() ?: "시작일") {
-                    showDatePicker = true
-                }
+                DateBox(startDate?.toSlashFormat() ?: "시작일") { showDatePicker = true }
                 Text("  ~  ")
-                DateBox(endDate?.toSlashFormat() ?: "종료일") {
-                    showDatePicker = true
-                }
+                DateBox(endDate?.toSlashFormat() ?: "종료일") { showDatePicker = true }
             }
+
             Spacer(Modifier.height(20.dp))
             Text("여행지", fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
@@ -208,10 +268,7 @@ fun DateRangePickerDialog(
                     val start = state.selectedStartDateMillis
                     val end = state.selectedEndDateMillis
                     if (start != null && end != null) {
-                        onConfirm(
-                            millisToLocalDate(start),
-                            millisToLocalDate(end)
-                        )
+                        onConfirm(millisToLocalDate(start), millisToLocalDate(end))
                     }
                 }
             ) { Text("확인") }
@@ -223,57 +280,8 @@ fun DateRangePickerDialog(
         DateRangePicker(state = state)
     }
 }
-/* Day Buttons */
-@Composable
-fun DayButtonRow(
-    startDate: LocalDate,
-    endDate: LocalDate,
-    selectedDay: Int,
-    onDayClick: (Int) -> Unit
-) {
-    val totalDays = ChronoUnit.DAYS.between(startDate, endDate).toInt() + 1
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        for (day in 1..totalDays) {
-            OutlinedButton(
-                onClick = { onDayClick(day) },
-                shape = RoundedCornerShape(20.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor =
-                        if (day == selectedDay) Color(0xFFE5E5E5)
-                        else Color.Transparent
-                )
-            ) {
-                Text("Day $day")
-            }
-        }
-    }
-}
-/* Map Move Logic */
-suspend fun moveMapToCity(
-    context: android.content.Context,
-    city: String,
-    cameraPositionState: CameraPositionState
-) {
-    val geocoder = Geocoder(context, Locale.KOREA)
-    val result = withContext(Dispatchers.IO) {
-        geocoder.getFromLocationName(city, 1)
-    }
-    if (!result.isNullOrEmpty()) {
-        val latLng = LatLng(result[0].latitude, result[0].longitude)
 
-        cameraPositionState.animate(
-            CameraUpdateFactory.newCameraPosition(
-                CameraPosition.fromLatLngZoom(latLng, 11f)
-            ),
-            durationMs = 1000
-        )
-    }
-}
+/* 공용 / 유틸 */
 @Composable
 fun DateBox(text: String, onClick: () -> Unit) {
     Box(
@@ -292,3 +300,22 @@ fun millisToLocalDate(millis: Long): LocalDate =
 
 fun LocalDate.toSlashFormat(): String =
     this.format(DateTimeFormatter.ofPattern("yyyy/MM/dd"))
+suspend fun moveMapToCity(
+    context: Context,
+    city: String,
+    cameraPositionState: CameraPositionState
+) {
+    val geocoder = Geocoder(context, Locale.KOREA)
+    val result = withContext(Dispatchers.IO) {
+        geocoder.getFromLocationName(city, 1)
+    }
+    if (!result.isNullOrEmpty()) {
+        val latLng = LatLng(result[0].latitude, result[0].longitude)
+        cameraPositionState.animate(
+            CameraUpdateFactory.newCameraPosition(
+                CameraPosition.fromLatLngZoom(latLng, 11f)
+            ),
+            durationMs = 800
+        )
+    }
+}

@@ -38,7 +38,7 @@ fun ScheduleScreen() {
             currentMonth = currentMonth,
             onPrev = { currentMonth = currentMonth.minusMonths(1) },
             onNext = { currentMonth = currentMonth.plusMonths(1) },
-            onAddTrip = { /* 여행 등록 로직 추가 */ }
+            onAddTrip = { }
         )
         Spacer(Modifier.height(12.dp))
         WeekHeader()
@@ -48,10 +48,18 @@ fun ScheduleScreen() {
             selectedDate = selectedDate,
             onDateClick = { selectedDate = it }
         )
+        Spacer(Modifier.height(12.dp))
+        TodayScheduleSection()
+        Spacer(Modifier.height(20.dp))
+        TodoSection()
+        Spacer(Modifier.height(20.dp))
     }
 }
 
-/* 상단 헤더 (월 + 방향키) */
+/* ===============================
+   캘린더 헤더
+================================ */
+
 @Composable
 fun CalendarHeader(
     currentMonth: YearMonth,
@@ -60,14 +68,11 @@ fun CalendarHeader(
     onAddTrip: () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(
-            onClick = onPrev,
-            modifier = Modifier.size(32.dp)
-        ) {
-            Text("<", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        IconButton(onClick = onPrev, modifier = Modifier.size(32.dp)) {
+            Text("<", fontWeight = FontWeight.Bold)
         }
         Text(
             text = "${currentMonth.year}년 ${currentMonth.monthValue}월",
@@ -76,60 +81,37 @@ fun CalendarHeader(
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold
         )
-        IconButton(
-            onClick = onNext,
-            modifier = Modifier.size(32.dp)
-        ) {
-            Text(
-                ">",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold
-            )
+        IconButton(onClick = onNext, modifier = Modifier.size(32.dp)) {
+            Text(">", fontWeight = FontWeight.Bold)
         }
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(Modifier.width(8.dp))
         OutlinedButton(
             onClick = onAddTrip,
             shape = RoundedCornerShape(20.dp),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
         ) {
-            Text(
-                "여행 등록",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium
-            )
+            Text("여행 등록", fontSize = 12.sp)
         }
     }
 }
-/* 요일 헤더 (일요일 시작) */
+
+/* ===============================
+   요일 헤더
+================================ */
+
 @Composable
 fun WeekHeader() {
-    val days = listOf(
-        DayOfWeek.SUNDAY,
-        DayOfWeek.MONDAY,
-        DayOfWeek.TUESDAY,
-        DayOfWeek.WEDNESDAY,
-        DayOfWeek.THURSDAY,
-        DayOfWeek.FRIDAY,
-        DayOfWeek.SATURDAY
-    )
+    val days = listOf("일", "월", "화", "수", "목", "금", "토")
     Row(modifier = Modifier.fillMaxWidth()) {
-        days.forEach { day ->
+        days.forEachIndexed { index, day ->
             Text(
-                text = when (day) {
-                    DayOfWeek.SUNDAY -> "일"
-                    DayOfWeek.MONDAY -> "월"
-                    DayOfWeek.TUESDAY -> "화"
-                    DayOfWeek.WEDNESDAY -> "수"
-                    DayOfWeek.THURSDAY -> "목"
-                    DayOfWeek.FRIDAY -> "금"
-                    DayOfWeek.SATURDAY -> "토"
-                },
+                text = day,
                 modifier = Modifier.weight(1f),
                 textAlign = TextAlign.Center,
                 fontWeight = FontWeight.Bold,
-                color = when (day) {
-                    DayOfWeek.SUNDAY -> Color.Red
-                    DayOfWeek.SATURDAY -> Color.Blue
+                color = when (index) {
+                    0 -> Color.Red
+                    6 -> Color.Blue
                     else -> Color.Black
                 }
             )
@@ -137,7 +119,10 @@ fun WeekHeader() {
     }
 }
 
-/* 캘린더 그리드 (6주 고정) */
+/* ===============================
+   캘린더 그리드
+================================ */
+
 @Composable
 fun CalendarGrid(
     yearMonth: YearMonth,
@@ -146,14 +131,11 @@ fun CalendarGrid(
 ) {
     val firstDayOfMonth = yearMonth.atDay(1)
     val daysInMonth = yearMonth.lengthOfMonth()
-    //일요일 시작 보정
     val startOffset = firstDayOfMonth.dayOfWeek.value % 7
     val dates = buildList<LocalDate?> {
         repeat(startOffset) { add(null) }
-        for (day in 1..daysInMonth) {
-            add(yearMonth.atDay(day))
-        }
-        while (size < 42) add(null) // 6주 고정
+        for (day in 1..daysInMonth) add(yearMonth.atDay(day))
+        while (size < 42) add(null)
     }
     LazyVerticalGrid(
         columns = GridCells.Fixed(7),
@@ -169,7 +151,6 @@ fun CalendarGrid(
         }
     }
 }
-/* 날짜 셀 */
 @Composable
 fun CalendarDayCell(
     date: LocalDate?,
@@ -203,6 +184,48 @@ fun CalendarDayCell(
                     }
                 )
             }
+        }
+    }
+}
+/* 오늘 일정 섹션 */
+@Composable
+fun TodayScheduleSection() {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("오늘 일정", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(6.dp))
+            Text("🗓️")
+        }
+        Spacer(Modifier.height(12.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFF5F5F5), RoundedCornerShape(24.dp))
+                .padding(vertical = 28.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("일정이 없습니다.", color = Color.Gray, fontSize = 14.sp)
+        }
+    }
+}
+/* To-Do List 섹션 */
+@Composable
+fun TodoSection() {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("To-Do List", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(6.dp))
+            Text("✅")
+        }
+        Spacer(Modifier.height(12.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFF5F5F5), RoundedCornerShape(24.dp))
+                .padding(vertical = 28.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("일정이 없습니다.", color = Color.Gray, fontSize = 14.sp)
         }
     }
 }
