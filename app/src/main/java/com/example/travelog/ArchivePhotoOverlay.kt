@@ -1,9 +1,5 @@
 package com.example.travelog
 
-import com.example.travelog.data.model.PhotoComment
-
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -39,20 +35,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.Painter
 import android.net.Uri
 import android.widget.ImageView
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import java.io.File
+import android.util.Log
 
 //오버레이
 @Composable
 fun ArchivePhotoOverlay(
     visible: Boolean,
     photoUri: String?,
-    comments: List<PhotoComment>,
+    comments: List<ArchiveCommentEntity>,
     inputText: String,
     onInputTextChange: (String) -> Unit,
     onSend: () -> Unit,
@@ -102,10 +98,25 @@ fun ArchivePhotoOverlay(
                             factory = { ctx ->
                                 ImageView(ctx).apply {
                                     scaleType = ImageView.ScaleType.CENTER_CROP
+                                    setBackgroundColor(android.graphics.Color.LTGRAY)
                                 }
                             },
                             update = { iv ->
-                                iv.setImageURI(Uri.parse(photoUri))
+                                try {
+                                    // photoUri가 내부저장소 absolute path("/data/user/0/..." 등)라면 File URI로 변환
+                                    val uri = when {
+                                        photoUri.startsWith("/") -> Uri.fromFile(File(photoUri))
+                                        else -> Uri.parse(photoUri)
+                                    }
+                                    iv.setImageURI(uri)
+                                } catch (se: SecurityException) {
+                                    // Photo Picker 임시 URI는 재실행 시 권한이 사라질 수 있음 → 크래시 대신 placeholder로
+                                    Log.w("ArchivePhotoOverlay", "No permission to open uri=$photoUri", se)
+                                    iv.setImageDrawable(null)
+                                } catch (t: Throwable) {
+                                    Log.w("ArchivePhotoOverlay", "Failed to load uri=$photoUri", t)
+                                    iv.setImageDrawable(null)
+                                }
                             }
                         )
                     } else {

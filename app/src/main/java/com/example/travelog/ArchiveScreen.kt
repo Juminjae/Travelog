@@ -3,6 +3,7 @@ package com.example.travelog
 import android.annotation.SuppressLint
 import android.app.Application
 import android.net.Uri
+import android.util.Log
 import android.widget.ImageView
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -46,7 +47,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -66,7 +66,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.travelog.ArchivePhotoEntity
-import com.example.travelog.data.model.PhotoComment
+import java.io.File
 
 @SuppressLint("UnrememberedMutableState")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -87,8 +87,14 @@ fun ArchiveScreen(
     val selectedCity by vm.selectedCity.collectAsState()
     val photoList by vm.photos.collectAsState()
 
+    // ✅ 실제 이미지 소스가 있는 항목만 그리드에 표시 (빈 placeholder 칸 제거)
+    val displayPhotoList = remember(photoList) {
+        photoList.filter { item ->
+            !item.uriString.isNullOrBlank() || !item.localResName.isNullOrBlank()
+        }
+    }
+
     LaunchedEffect(cityList) {
-        // ViewModel 기본 도시가 비어있으면 첫 도시로 맞춤
         if (cityList.isNotEmpty() && selectedCity.isBlank()) {
             vm.setSelectedCity(cityList.first())
         }
@@ -96,23 +102,31 @@ fun ArchiveScreen(
 
     // 오버레아 상태
     var overlayOpen by remember { mutableStateOf(false) }
-    var selectedPhotoId by remember { mutableStateOf<String?>(null) }
+    var selectedPhotoId by remember { mutableStateOf<Long?>(null) }
     var commentInput by remember { mutableStateOf("") }
     var selectedPhotoUri by remember { mutableStateOf<String?>(null) }
 
-    // 댓글(더미) — photoId별로 분리 저장
-    val commentMap = remember { mutableStateMapOf<String, androidx.compose.runtime.snapshots.SnapshotStateList<PhotoComment>>() }
-
-    fun commentsOf(photoId: String): androidx.compose.runtime.snapshots.SnapshotStateList<PhotoComment> =
-        commentMap.getOrPut(photoId) { androidx.compose.runtime.mutableStateListOf() }
+    val comments by vm.comments.collectAsState()
 
     // 갤러리(사진) 선택 런처
     val pickImageLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            // ✅ ViewModel을 통해 저장 (DB init/insert는 VM에서 처리)
-            vm.addUriPhoto(uri.toString())
+            // ✅ ViewModel에서 내부저장소로 복사/저장하도록 처리하는 것을 권장
+            try {
+                // 만약 ViewModel에 Uri 버전이 있으면 그걸 사용
+                val m = vm::class.java.methods.firstOrNull { it.name == "addUriPhoto" && it.parameterTypes.size == 1 && it.parameterTypes[0] == Uri::class.java }
+                if (m != null) {
+                    m.invoke(vm, uri)
+                } else {
+                    // (임시) String 버전만 있다면 그대로 호출
+                    vm.addUriPhoto(uri.toString())
+                }
+            } catch (t: Throwable) {
+                // 마지막 안전장치
+                vm.addUriPhoto(uri.toString())
+            }
         }
     }
 
@@ -154,13 +168,23 @@ fun ArchiveScreen(
             )
 
             ArchivePhotoGrid(
-                photoList = photoList,
+                photoList = displayPhotoList,
                 onPhotoClick = { item ->
-                    selectedPhotoId = item.id.toString()
+                    selectedPhotoId = item.id.toLong()
+                    vm.setSelectedPhoto(item.id.toLong())
 
                     // 오버레이는 String URI로 통일해서 넘김
                     selectedPhotoUri = when {
-                        !item.uriString.isNullOrBlank() -> item.uriString
+                        !item.uriString.isNullOrBlank() -> {
+                            val s = item.uriString!!
+                            when {
+                                // 내부 저장소 absolute path면 그대로 넘김 (Overlay에서 File로 처리)
+                                s.startsWith("/") -> s
+                                // Photo Picker 임시 URI는 재실행 시 권한이 사라질 수 있어 크래시 유발 → 차단
+                                s.startsWith("content://media/picker_get_content") -> null
+                                else -> s
+                            }
+                        }
                         !item.localResName.isNullOrBlank() -> {
                             val resId = context.resources.getIdentifier(
                                 item.localResName,
@@ -183,24 +207,16 @@ fun ArchiveScreen(
         }
 
         // 오버레이
-        val currentComments: androidx.compose.runtime.snapshots.SnapshotStateList<PhotoComment> = selectedPhotoId?.let { commentsOf(it) } ?: androidx.compose.runtime.mutableStateListOf()
         ArchivePhotoOverlay(
             visible = overlayOpen,
             photoUri = selectedPhotoUri,
-            comments = currentComments,
+            comments = comments,
             inputText = commentInput,
             onInputTextChange = { commentInput = it },
             onSend = {
                 val t = commentInput.trim()
-                if (t.isNotEmpty() && selectedPhotoId != null) {
-                    commentsOf(selectedPhotoId!!).add(
-                        PhotoComment(
-                            photoId = selectedPhotoId!!,
-                            authorName = "me",
-                            text = t,
-                            createdAt = System.currentTimeMillis()
-                        )
-                    )
+                if (t.isNotEmpty()) {
+                    vm.addComment(authorName = "me", text = t)
                     commentInput = ""
                 }
             },
@@ -373,7 +389,14 @@ private fun ArchivePhotoGrid(
         items(photoList) { item ->
             val ctx = LocalContext.current
             val showUri: String? = when {
-                !item.uriString.isNullOrBlank() -> item.uriString
+                !item.uriString.isNullOrBlank() -> {
+                    val s = item.uriString!!
+                    when {
+                        s.startsWith("/") -> s // internal file absolute path
+                        s.startsWith("content://media/picker_get_content") -> null // block temp picker uri
+                        else -> s
+                    }
+                }
                 !item.localResName.isNullOrBlank() -> {
                     val resId = ctx.resources.getIdentifier(item.localResName, "drawable", ctx.packageName)
                     if (resId != 0) "android.resource://${ctx.packageName}/$resId" else null
@@ -395,21 +418,39 @@ private fun ArchivePhotoGrid(
                     AndroidView(
                         modifier = Modifier.fillMaxSize(),
                         factory = { c ->
-                            ImageView(c).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
+                            ImageView(c).apply {
+                                scaleType = ImageView.ScaleType.CENTER_CROP
+                                setBackgroundColor(android.graphics.Color.LTGRAY)
+                            }
                         },
                         update = { iv ->
-                            val u = Uri.parse(showUri)
-                            if (showUri.startsWith("android.resource://")) {
-                                // resource uri: 마지막 segment가 resId
-                                val resId = showUri.substringAfterLast('/').toIntOrNull()
-                                if (resId != null) iv.setImageResource(resId) else iv.setImageURI(u)
-                            } else {
-                                iv.setImageURI(u)
+                            try {
+                                if (showUri.startsWith("android.resource://")) {
+                                    val resId = showUri.substringAfterLast('/').toIntOrNull()
+                                    if (resId != null) {
+                                        iv.setImageResource(resId)
+                                    } else {
+                                        iv.setImageDrawable(null)
+                                    }
+                                } else {
+                                    val uri = if (showUri.startsWith("/")) {
+                                        Uri.fromFile(File(showUri))
+                                    } else {
+                                        Uri.parse(showUri)
+                                    }
+                                    iv.setImageURI(uri)
+                                }
+                            } catch (se: SecurityException) {
+                                Log.w("ArchiveScreen", "No permission to open uri=$showUri", se)
+                                iv.setImageDrawable(null)
+                            } catch (t: Throwable) {
+                                Log.w("ArchiveScreen", "Failed to load uri=$showUri", t)
+                                iv.setImageDrawable(null)
                             }
                         }
                     )
                 } else {
-                    Text(text = "#${item.id}", color = Color(0xFF6B7280), fontSize = 12.sp)
+                    // no-op (빈 상태는 칸 자체가 생성되지 않도록 상위에서 필터링함)
                 }
             }
         }
