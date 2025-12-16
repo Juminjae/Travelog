@@ -49,8 +49,8 @@ android {
             "\"${getApiKey("GOOGLE_API_KEY")}\""
         )
 
-        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] =
-            envProps.getProperty("GOOGLE_MAPS_API_KEY")
+        manifestPlaceholders["MAPS_API_KEY"] =
+            envProps.getProperty("MAPS_API_KEY")
     }
 
     buildTypes {
