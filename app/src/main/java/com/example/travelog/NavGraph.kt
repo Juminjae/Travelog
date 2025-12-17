@@ -23,7 +23,7 @@ fun MainNavHost(
             MapScreen()
         }
         composable(BottomNavItem.Archive.route) {
-            ArchiveScreen()
+            ArchiveScreen(navController=navController)
         }
         composable(BottomNavItem.Schedule.route) {
             ScheduleScreen()

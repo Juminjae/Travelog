@@ -59,6 +59,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -67,14 +68,17 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.travelog.ArchivePhotoEntity
 import java.io.File
+import androidx.navigation.NavController
 
 @SuppressLint("UnrememberedMutableState")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ArchiveScreen(
-    cityList: List<String> = listOf("빈", "런던", "삿포로")
+    navController: NavController,
+    cityList: List<String> = listOf("빈", "런던", "삿포로"),
+    onGoPlannedTrips: () -> Unit = {}
 ) {
-    var selectedTabIndex by rememberSaveable { mutableStateOf(1) }
+    val selectedTabIndex = 1
     var expanded by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
@@ -87,7 +91,6 @@ fun ArchiveScreen(
     val selectedCity by vm.selectedCity.collectAsState()
     val photoList by vm.photos.collectAsState()
 
-    // ✅ 실제 이미지 소스가 있는 항목만 그리드에 표시 (빈 placeholder 칸 제거)
     val displayPhotoList = remember(photoList) {
         photoList.filter { item ->
             !item.uriString.isNullOrBlank() || !item.localResName.isNullOrBlank()
@@ -108,23 +111,19 @@ fun ArchiveScreen(
 
     val comments by vm.comments.collectAsState()
 
-    // 갤러리(사진) 선택 런처
+    // 갤러리(사진) 선택
     val pickImageLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            // ✅ ViewModel에서 내부저장소로 복사/저장하도록 처리하는 것을 권장
             try {
-                // 만약 ViewModel에 Uri 버전이 있으면 그걸 사용
                 val m = vm::class.java.methods.firstOrNull { it.name == "addUriPhoto" && it.parameterTypes.size == 1 && it.parameterTypes[0] == Uri::class.java }
                 if (m != null) {
                     m.invoke(vm, uri)
                 } else {
-                    // (임시) String 버전만 있다면 그대로 호출
                     vm.addUriPhoto(uri.toString())
                 }
             } catch (t: Throwable) {
-                // 마지막 안전장치
                 vm.addUriPhoto(uri.toString())
             }
         }
@@ -148,7 +147,11 @@ fun ArchiveScreen(
 
             ArchiveTabs(
                 selectedTabIndex = selectedTabIndex,
-                onSelectTab = { selectedTabIndex = it }
+                onSelectTab = { index ->
+                    if (index == 0) { //0=예정된 여행, 1=지난여행
+                        onGoPlannedTrips()
+                    }
+                }
             )
 
             HorizontalDivider(thickness = 1.dp, color = Color(0xFFE5E7EB))
@@ -251,7 +254,7 @@ private fun ArchiveTopBar(
 
 
         Icon(
-            imageVector = Icons.Filled.Bookmark,
+            painter = painterResource(id = R.drawable.icon_bookmark),
             contentDescription = "저장",
             tint = Color.Black,
             modifier = Modifier
@@ -263,7 +266,7 @@ private fun ArchiveTopBar(
         Spacer(modifier = Modifier.width(1.dp))
 
         Icon(
-            imageVector = Icons.Filled.Notifications,
+            painter = painterResource(id = R.drawable.icon_notification),
             contentDescription = "알림",
             tint = Color.Black,
             modifier = Modifier
@@ -309,7 +312,9 @@ private fun ArchiveTabs(
         tabs.forEachIndexed { index, title ->
             Tab(
                 selected = selectedTabIndex == index,
-                onClick = { onSelectTab(index) },
+                onClick = {
+                    if (selectedTabIndex != index) onSelectTab(index)
+                },
                 text = {
                     Text(
                         text = title,
@@ -449,9 +454,7 @@ private fun ArchivePhotoGrid(
                             }
                         }
                     )
-                } else {
-                    // no-op (빈 상태는 칸 자체가 생성되지 않도록 상위에서 필터링함)
-                }
+                } else { }
             }
         }
 

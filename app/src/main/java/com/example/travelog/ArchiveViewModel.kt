@@ -42,21 +42,14 @@ class ArchiveViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun addUriPhoto(uriString: String) {
-        // Backward compatible entry point.
-        // If this is a temporary Photo Picker URI, copy it to internal storage first.
         val city = selectedCity.value
 
         viewModelScope.launch {
             val storedPathOrUri: String? = try {
                 when {
-                    // 이미 내부 저장소 absolute path로 들어온 경우
                     uriString.startsWith("/") -> uriString
-
-                    // android.resource:// 는 drawable 리소스용. 이 경우에는 addDummyPhoto를 쓰는 게 맞지만,
-                    // 혹시 들어오면 그대로 저장하지 않고 null 처리(placeholder 유지)
                     uriString.startsWith("android.resource://") -> null
 
-                    // content:// 등은 Uri로 열어서 내부 파일로 복사
                     else -> {
                         val uri = Uri.parse(uriString)
                         copyUriToInternalFile(uri)
