@@ -30,16 +30,13 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -49,15 +46,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -66,9 +59,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.travelog.ArchivePhotoEntity
-import java.io.File
 import androidx.navigation.NavController
+import java.io.File
 
 @SuppressLint("UnrememberedMutableState")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -92,9 +84,7 @@ fun ArchiveScreen(
     val photoList by vm.photos.collectAsState()
 
     val displayPhotoList = remember(photoList) {
-        photoList.filter { item ->
-            !item.uriString.isNullOrBlank() || !item.localResName.isNullOrBlank()
-        }
+        photoList.filter { it.internalPath.isNotBlank() }
     }
 
     LaunchedEffect(cityList) {
@@ -115,18 +105,7 @@ fun ArchiveScreen(
     val pickImageLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        if (uri != null) {
-            try {
-                val m = vm::class.java.methods.firstOrNull { it.name == "addUriPhoto" && it.parameterTypes.size == 1 && it.parameterTypes[0] == Uri::class.java }
-                if (m != null) {
-                    m.invoke(vm, uri)
-                } else {
-                    vm.addUriPhoto(uri.toString())
-                }
-            } catch (t: Throwable) {
-                vm.addUriPhoto(uri.toString())
-            }
-        }
+        if (uri != null) vm.addPickedPhoto( uri)
     }
 
     Box(
@@ -176,30 +155,8 @@ fun ArchiveScreen(
                     selectedPhotoId = item.id.toLong()
                     vm.setSelectedPhoto(item.id.toLong())
 
-                    // 오버레이는 String URI로 통일해서 넘김
-                    selectedPhotoUri = when {
-                        !item.uriString.isNullOrBlank() -> {
-                            val s = item.uriString!!
-                            when {
-                                // 내부 저장소 absolute path면 그대로 넘김 (Overlay에서 File로 처리)
-                                s.startsWith("/") -> s
-                                // Photo Picker 임시 URI는 재실행 시 권한이 사라질 수 있어 크래시 유발 → 차단
-                                s.startsWith("content://media/picker_get_content") -> null
-                                else -> s
-                            }
-                        }
-                        !item.localResName.isNullOrBlank() -> {
-                            val resId = context.resources.getIdentifier(
-                                item.localResName,
-                                "drawable",
-                                context.packageName
-                            )
-                            if (resId != 0) {
-                                "android.resource://${context.packageName}/$resId"
-                            } else null
-                        }
-                        else -> null
-                    }
+                    // 오버레이는 내부 파일 absolute path로 넘김
+                    selectedPhotoUri = item.internalPath
 
                     overlayOpen = true
                 },
@@ -392,22 +349,7 @@ private fun ArchivePhotoGrid(
         verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
         items(photoList) { item ->
-            val ctx = LocalContext.current
-            val showUri: String? = when {
-                !item.uriString.isNullOrBlank() -> {
-                    val s = item.uriString!!
-                    when {
-                        s.startsWith("/") -> s // internal file absolute path
-                        s.startsWith("content://media/picker_get_content") -> null // block temp picker uri
-                        else -> s
-                    }
-                }
-                !item.localResName.isNullOrBlank() -> {
-                    val resId = ctx.resources.getIdentifier(item.localResName, "drawable", ctx.packageName)
-                    if (resId != 0) "android.resource://${ctx.packageName}/$resId" else null
-                }
-                else -> null
-            }
+            val showPath = item.internalPath
 
             Box(
                 modifier = Modifier
@@ -419,7 +361,7 @@ private fun ArchivePhotoGrid(
                     .clickable { onPhotoClick(item) },
                 contentAlignment = Alignment.Center
             ) {
-                if (showUri != null) {
+                if (showPath.isNotBlank()) {
                     AndroidView(
                         modifier = Modifier.fillMaxSize(),
                         factory = { c ->
@@ -430,31 +372,14 @@ private fun ArchivePhotoGrid(
                         },
                         update = { iv ->
                             try {
-                                if (showUri.startsWith("android.resource://")) {
-                                    val resId = showUri.substringAfterLast('/').toIntOrNull()
-                                    if (resId != null) {
-                                        iv.setImageResource(resId)
-                                    } else {
-                                        iv.setImageDrawable(null)
-                                    }
-                                } else {
-                                    val uri = if (showUri.startsWith("/")) {
-                                        Uri.fromFile(File(showUri))
-                                    } else {
-                                        Uri.parse(showUri)
-                                    }
-                                    iv.setImageURI(uri)
-                                }
-                            } catch (se: SecurityException) {
-                                Log.w("ArchiveScreen", "No permission to open uri=$showUri", se)
-                                iv.setImageDrawable(null)
+                                iv.setImageURI(Uri.fromFile(File(showPath)))
                             } catch (t: Throwable) {
-                                Log.w("ArchiveScreen", "Failed to load uri=$showUri", t)
+                                Log.w("ArchiveScreen", "Failed to load path=$showPath", t)
                                 iv.setImageDrawable(null)
                             }
                         }
                     )
-                } else { }
+                }
             }
         }
 

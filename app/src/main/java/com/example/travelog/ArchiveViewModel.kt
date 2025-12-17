@@ -41,58 +41,17 @@ class ArchiveViewModel(app: Application) : AndroidViewModel(app) {
         return outFile.absolutePath
     }
 
-    fun addUriPhoto(uriString: String) {
-        val city = selectedCity.value
-
-        viewModelScope.launch {
-            val storedPathOrUri: String? = try {
-                when {
-                    uriString.startsWith("/") -> uriString
-                    uriString.startsWith("android.resource://") -> null
-
-                    else -> {
-                        val uri = Uri.parse(uriString)
-                        copyUriToInternalFile(uri)
-                    }
-                }
-            } catch (_: Throwable) {
-                null
-            }
-
-            if (storedPathOrUri != null) {
-                dao.insert(
-                    ArchivePhotoEntity(
-                        cityName = city,
-                        sourceType = "internalFile",
-                        uriString = storedPathOrUri,
-                        localResName = null,
-                        createdAt = System.currentTimeMillis()
-                    )
-                )
-            }
-        }
-    }
-
-    fun addUriPhoto(uri: Uri) {
+    fun addPickedPhoto(uri: Uri) {
         val city = selectedCity.value
         viewModelScope.launch {
-            val path = try {
-                copyUriToInternalFile(uri)
-            } catch (_: Throwable) {
-                null
-            }
-
-            if (path != null) {
-                dao.insert(
-                    ArchivePhotoEntity(
-                        cityName = city,
-                        sourceType = "internalFile",
-                        uriString = path,
-                        localResName = null,
-                        createdAt = System.currentTimeMillis()
-                    )
+            val internalPath = copyUriToInternalFile(uri)
+            dao.insert(
+                ArchivePhotoEntity(
+                    cityName = city,
+                    internalPath = internalPath,
+                    createdAt = System.currentTimeMillis()
                 )
-            }
+            )
         }
     }
 
@@ -133,16 +92,4 @@ class ArchiveViewModel(app: Application) : AndroidViewModel(app) {
         selectedCityFlow
             .flatMapLatest { city -> dao.observeByCity(city) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    fun addDummyPhoto(city: String, localResName: String) {
-        viewModelScope.launch {
-            dao.insert(
-                ArchivePhotoEntity(
-                    cityName = city,
-                    sourceType = "localRes",
-                    localResName = localResName
-                )
-            )
-        }
-    }
 }

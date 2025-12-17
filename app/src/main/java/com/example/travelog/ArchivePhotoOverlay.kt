@@ -103,27 +103,12 @@ fun ArchivePhotoOverlay(
                             },
                             update = { iv ->
                                 try {
-                                    // photoUri가 내부저장소 absolute path("/data/user/0/..." 등)라면 File URI로 변환
-                                    val uri = when {
-                                        photoUri.startsWith("/") -> Uri.fromFile(File(photoUri))
-                                        else -> Uri.parse(photoUri)
-                                    }
-                                    iv.setImageURI(uri)
-                                } catch (se: SecurityException) {
-                                    // Photo Picker 임시 URI는 재실행 시 권한이 사라질 수 있음 → 크래시 대신 placeholder로
-                                    Log.w("ArchivePhotoOverlay", "No permission to open uri=$photoUri", se)
-                                    iv.setImageDrawable(null)
+                                    iv.setImageURI(Uri.fromFile(File(photoUri)))
                                 } catch (t: Throwable) {
-                                    Log.w("ArchivePhotoOverlay", "Failed to load uri=$photoUri", t)
+                                    Log.w("ArchivePhotoOverlay", "Failed to load photo path=$photoUri", t)
                                     iv.setImageDrawable(null)
                                 }
                             }
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.LightGray)
                         )
                     }
 

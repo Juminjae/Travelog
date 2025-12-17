@@ -14,14 +14,8 @@ interface ArchiveDao {
     @Insert
     suspend fun insert(item: ArchivePhotoEntity)
 
-    @Insert
-    suspend fun insertAll(items: List<ArchivePhotoEntity>)
-
-    @Query("SELECT COUNT(*) FROM archive_photos WHERE cityName = :cityName")
-    suspend fun countByCity(cityName: String): Int
-
-    @Query("SELECT * FROM archive_comment WHERE photoId = :photoID ORDER BY createdAt ASC")
-    fun observeComments(photoID: Long): Flow<List<ArchiveCommentEntity>>
+    @Query("SELECT * FROM archive_comment WHERE photoId = :photoId ORDER BY createdAt ASC")
+    fun observeComments(photoId: Long): Flow<List<ArchiveCommentEntity>>
 
     @Insert
     suspend fun insertComment(item: ArchiveCommentEntity)
