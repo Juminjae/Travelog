@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -26,49 +27,72 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+
 data class TripPlan(
     val startDate: LocalDate,
     val endDate: LocalDate,
     val destination: String
 )
-/* ViewModel */
+data class DayPlace(
+    val title: String,
+    val latLng: LatLng
+)
+
 class TripViewModel : ViewModel() {
     var tripPlan by mutableStateOf<TripPlan?>(null)
         private set
+    /* Day별 장소 목록 */
+    val dayPlaces = mutableStateMapOf<Int, MutableList<DayPlace>>()
     fun createTrip(start: LocalDate, end: LocalDate, destination: String) {
         tripPlan = TripPlan(start, end, destination)
+        dayPlaces.clear()
+        val days = ChronoUnit.DAYS.between(start, end).toInt() + 1
+        repeat(days) {
+            dayPlaces[it + 1] = mutableListOf()
+        }
+    }
+    fun addPlace(day: Int, place: DayPlace) {
+        val current = dayPlaces[day] ?: mutableListOf()
+        dayPlaces[day] = (current + place).toMutableList()
     }
     fun totalDays(): Int {
         val t = tripPlan ?: return 0
         return ChronoUnit.DAYS.between(t.startDate, t.endDate).toInt() + 1
     }
 }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(
     tripViewModel: TripViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(
             LatLng(37.5665, 126.9780),
             10f
         )
     }
-
     var showTripBottomSheet by remember { mutableStateOf(false) }
+    var showPlaceBottomSheet by remember { mutableStateOf(false) }
     var selectedDay by remember { mutableStateOf(1) }
 
     val trip = tripViewModel.tripPlan
     val totalDays = tripViewModel.totalDays()
 
-    /* 여행지 기준 지도 이동 */
+    val placesForDay = tripViewModel.dayPlaces[selectedDay] ?: emptyList()
+
     LaunchedEffect(trip?.destination) {
         trip?.destination?.let {
             moveMapToCity(context, it, cameraPositionState)
@@ -83,37 +107,44 @@ fun MapScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 20.dp, end = 20.dp, top = 30.dp, bottom = 12.dp),
+                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "여행지도",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text("여행지도", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Box(
                 modifier = Modifier
                     .size(36.dp)
-                    .border(1.dp, Color.Black, CircleShape)
+                    .border(2.dp, Color.Gray, RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(10.dp))
                     .clickable { showTripBottomSheet = true },
                 contentAlignment = Alignment.Center
             ) {
-                Text("+", fontSize = 16.sp)
+                Text("+", fontSize = 20.sp)
             }
         }
         Box(
             modifier = Modifier
                 .padding(horizontal = 20.dp)
                 .fillMaxWidth()
-                .height(500.dp)
+                .height(430.dp)
+                .border(2.dp, Color.LightGray, RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(20.dp))
         ) {
             GoogleMap(
                 modifier = Modifier.fillMaxSize(),
                 cameraPositionState = cameraPositionState
-            )
+            ) {
+                // ✅ 선택된 Day의 장소들 마커 표시
+                placesForDay.forEach { p ->
+                    Marker(
+                        state = MarkerState(p.latLng),
+                        title = p.title
+                    )
+                }
+            }
         }
-        /* ===== Day 버튼 ===== */
+        /* Day Buttons */
         if (trip != null) {
             DayButtonRow(
                 totalDays = totalDays,
@@ -121,28 +152,57 @@ fun MapScreen(
                 onDayClick = { selectedDay = it }
             )
         }
-        /* 모든 Day 안내 문구  */
+        /* Day Content */
         if (trip != null) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 8.dp)
             ) {
-                Text(
-                    text = "Day $selectedDay",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Day $selectedDay", fontWeight = FontWeight.SemiBold)
+                    Box(
+                        modifier = Modifier
+                            .size(25.dp)
+                            .border(1.dp, Color.Gray, CircleShape)
+                            .clickable { showPlaceBottomSheet = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("+", fontWeight = FontWeight.Bold)
+                    }
+                }
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = " + 버튼을 눌러 여행 일정을 추가해보세요.",
-                    fontSize = 13.sp,
+                    text = "+ 버튼을 눌러 여행 장소를 추가해보세요.",
+                    fontSize = 14.sp,
                     color = Color.Gray
                 )
+                /* 카드 리스트 */
+                if (placesForDay.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 250.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        itemsIndexed(placesForDay) { index, place ->
+                            DayPlaceCard(
+                                order = index + 1,
+                                title = place.title
+                            )
+                        }
+                    }
+                }
             }
         }
     }
-    /*  여행 일정 추가 BottomSheet */
+
+    /* 여행 추가 BottomSheet */
     if (showTripBottomSheet) {
         TravelAddBottomSheet(
             onDismiss = { showTripBottomSheet = false },
@@ -153,8 +213,33 @@ fun MapScreen(
             }
         )
     }
+    /* 장소 추가 BottomSheet (이름만 입력) */
+    if (showPlaceBottomSheet) {
+        PlaceAddBottomSheet(
+            onDismiss = { showPlaceBottomSheet = false },
+            onSave = { placeName ->
+                // ✅ suspend 함수(addPlaceByName) 호출은 코루틴으로 감싸야 함
+                scope.launch {
+                    val added = addPlaceByName(context, placeName)
+                    if (added != null) {
+                        tripViewModel.addPlace(selectedDay, added)
+
+                        // ✅ 지도 이동
+                        cameraPositionState.animate(
+                            CameraUpdateFactory.newCameraPosition(
+                                CameraPosition.fromLatLngZoom(added.latLng, 13f)
+                            ),
+                            durationMs = 800
+                        )
+                    }
+                }
+                showPlaceBottomSheet = false
+            }
+        )
+    }
 }
-/* Day 버튼 Row */
+
+/* Components */
 @Composable
 fun DayButtonRow(
     totalDays: Int,
@@ -169,7 +254,6 @@ fun DayButtonRow(
     ) {
         items(totalDays) { index ->
             val day = index + 1
-
             OutlinedButton(
                 onClick = { onDayClick(day) },
                 shape = RoundedCornerShape(10.dp),
@@ -184,7 +268,81 @@ fun DayButtonRow(
         }
     }
 }
-/* 여행 일정 추가 BottomSheet */
+
+/* 카드 UI (기존 카드 느낌 유지, title만 표시) */
+@Composable
+fun DayPlaceCard(
+    order: Int,
+    title: String
+) {
+    Row(Modifier.fillMaxWidth()) {
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.width(24.dp)
+        ) {
+            Text("$order", fontWeight = FontWeight.Bold)
+            Box(
+                Modifier
+                    .width(2.dp)
+                    .height(80.dp)
+                    .background(Color.LightGray)
+            )
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.cardElevation(2.dp)
+        ) {
+            Column(Modifier.padding(16.dp)) {
+                Text(title, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Text("지도의 마커로 위치를 확인하세요", fontSize = 13.sp, color = Color.Gray)
+            }
+        }
+    }
+}
+
+/* Place Add BottomSheet - 이름만 입력 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PlaceAddBottomSheet(
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(20.dp)) {
+            Text("장소 추가", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                placeholder = { Text("예: 오사카성, 해운대, 도쿄역") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            Spacer(Modifier.height(20.dp))
+
+            Button(
+                onClick = { onSave(title.trim()) },
+                enabled = title.isNotBlank(),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("추가")
+            }
+        }
+    }
+}
+
+/* ✅ TravelAddBottomSheet 정의 포함 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TravelAddBottomSheet(
@@ -195,6 +353,7 @@ fun TravelAddBottomSheet(
     var endDate by remember { mutableStateOf<LocalDate?>(null) }
     var destination by remember { mutableStateOf("") }
     var showDatePicker by remember { mutableStateOf(false) }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
@@ -205,9 +364,11 @@ fun TravelAddBottomSheet(
                 .padding(20.dp)
         ) {
             Text("여행 일정 추가", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+
             Spacer(Modifier.height(20.dp))
             Text("여행 기간", fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
+
             Row(verticalAlignment = Alignment.CenterVertically) {
                 DateBox(startDate?.toSlashFormat() ?: "시작일") { showDatePicker = true }
                 Text("  ~  ")
@@ -217,6 +378,7 @@ fun TravelAddBottomSheet(
             Spacer(Modifier.height(20.dp))
             Text("여행지", fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
+
             OutlinedTextField(
                 value = destination,
                 onValueChange = { destination = it },
@@ -224,11 +386,13 @@ fun TravelAddBottomSheet(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
+
             Spacer(Modifier.height(24.dp))
+
             Button(
                 onClick = {
                     if (startDate != null && endDate != null && destination.isNotBlank()) {
-                        onSave(startDate!!, endDate!!, destination)
+                        onSave(startDate!!, endDate!!, destination.trim())
                     }
                 },
                 enabled = startDate != null && endDate != null && destination.isNotBlank(),
@@ -237,22 +401,24 @@ fun TravelAddBottomSheet(
             ) {
                 Text("저장")
             }
+
             Spacer(Modifier.height(16.dp))
         }
     }
+
     if (showDatePicker) {
         DateRangePickerDialog(
             onDismiss = { showDatePicker = false },
-            onConfirm = { start, end ->
-                startDate = start
-                endDate = end
+            onConfirm = { s, e ->
+                startDate = s
+                endDate = e
                 showDatePicker = false
             }
         )
     }
 }
 
-/* DateRangePicker Dialog */
+/* ✅ DateRangePickerDialog 정의 포함 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DateRangePickerDialog(
@@ -265,10 +431,13 @@ fun DateRangePickerDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    val start = state.selectedStartDateMillis
-                    val end = state.selectedEndDateMillis
-                    if (start != null && end != null) {
-                        onConfirm(millisToLocalDate(start), millisToLocalDate(end))
+                    val startMillis = state.selectedStartDateMillis
+                    val endMillis = state.selectedEndDateMillis
+                    if (startMillis != null && endMillis != null) {
+                        onConfirm(
+                            millisToLocalDate(startMillis),
+                            millisToLocalDate(endMillis)
+                        )
                     }
                 }
             ) { Text("확인") }
@@ -281,7 +450,7 @@ fun DateRangePickerDialog(
     }
 }
 
-/* 공용 / 유틸 */
+/* Utils */
 @Composable
 fun DateBox(text: String, onClick: () -> Unit) {
     Box(
@@ -293,6 +462,7 @@ fun DateBox(text: String, onClick: () -> Unit) {
         Text(text)
     }
 }
+
 fun millisToLocalDate(millis: Long): LocalDate =
     java.time.Instant.ofEpochMilli(millis)
         .atZone(ZoneId.systemDefault())
@@ -300,6 +470,23 @@ fun millisToLocalDate(millis: Long): LocalDate =
 
 fun LocalDate.toSlashFormat(): String =
     this.format(DateTimeFormatter.ofPattern("yyyy/MM/dd"))
+/* 좌표 변환 */
+suspend fun addPlaceByName(
+    context: Context,
+    placeName: String
+): DayPlace? {
+    val geocoder = Geocoder(context, Locale.KOREA)
+
+    val result = withContext(Dispatchers.IO) {
+        runCatching { geocoder.getFromLocationName(placeName, 1) }.getOrNull()
+    }
+
+    if (!result.isNullOrEmpty()) {
+        val latLng = LatLng(result[0].latitude, result[0].longitude)
+        return DayPlace(title = placeName, latLng = latLng)
+    }
+    return null
+}
 suspend fun moveMapToCity(
     context: Context,
     city: String,
@@ -307,7 +494,7 @@ suspend fun moveMapToCity(
 ) {
     val geocoder = Geocoder(context, Locale.KOREA)
     val result = withContext(Dispatchers.IO) {
-        geocoder.getFromLocationName(city, 1)
+        runCatching { geocoder.getFromLocationName(city, 1) }.getOrNull()
     }
     if (!result.isNullOrEmpty()) {
         val latLng = LatLng(result[0].latitude, result[0].longitude)
