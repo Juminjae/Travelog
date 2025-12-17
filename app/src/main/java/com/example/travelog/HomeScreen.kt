@@ -23,6 +23,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -43,18 +44,19 @@ import com.example.travelog.data.model.mapWeatherIcon
 import com.example.travelog.data.network.RetrofitClient
 
 import androidx.lifecycle.viewmodel.compose.viewModel
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 
 @Composable
 fun HomeScreen(
     navController: NavHostController,
-    weatherViewModel: WeatherViewModel = viewModel()
+    weatherViewModel: WeatherViewModel = viewModel(),
+    tripsVm: TripsViewModel
 ) {
     // 검색창
     var query by remember { mutableStateOf("") }
-//    var query by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-//        mutableStateOf(TextFieldValue(""))
-//    }
-//    val keyboard = LocalSoftwareKeyboardController.current
 
     // 수직으로 정렬
     Column(
@@ -154,6 +156,25 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(20.dp)) // 검색창 아래 여백
 
+        val zone = remember { ZoneId.systemDefault() }
+
+        val nearestTrip by remember {
+            derivedStateOf {
+                val today = LocalDate.now()
+
+                tripsVm.trips
+                    .map { trip ->
+                        val targetDate = Instant.ofEpochMilli(trip.targetDateMillis)
+                            .atZone(zone)
+                            .toLocalDate()
+
+                        trip to ChronoUnit.DAYS.between(today, targetDate).toInt()
+                    }
+                    .filter { (_, diffDays) -> diffDays >= 0 }  // 지난 여행 제외
+                    .minByOrNull { (_, diffDays) -> diffDays }  // D-Day 가장 작은 것
+            }
+        }
+
         // D-Day & Weather Button
         Box(
             modifier = Modifier.fillMaxSize()
@@ -174,18 +195,30 @@ fun HomeScreen(
                             .width(100.dp)
                             .padding(5.dp)
                     ){
-                        Text(
-                            text = "출국까지",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.Black
-                        )
-                        Text(
-                            text = "D-74",
-                            fontSize = 40.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.Black
-                        )
+                        if (nearestTrip != null) {
+                            Text(
+                                text = "출국까지",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.Black
+                            )
+
+                            val dText = nearestTrip?.second?.let { "D-$it" } ?: "-"
+                            Text(
+                                text = dText,
+                                fontSize = 40.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (nearestTrip != null) Color.Black else Color.Gray
+                            )
+                        } else {
+                            // 여행이 없을 때
+                            Text(
+                                text = "-",
+                                fontSize = 40.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.Gray
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.width(30.dp))
@@ -248,6 +281,8 @@ fun HomeScreen(
 
                 Spacer(modifier = Modifier.height(3.dp))
 
+                val trips = tripsVm.trips
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -263,28 +298,30 @@ fun HomeScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        item {
-                            TravelPlanCard(
-                                cityName = "삿포로",
-                                flagText = "\uD83C\uDDEF\uD83C\uDDF5",
-                                imageRes = R.drawable.sapporo
-                            )
-                        }
-
-                        item {
-                            TravelPlanCard(
-                                cityName = "런던",
-                                flagText = "\uD83C\uDDEC\uD83C\uDDE7",
-                                imageRes = R.drawable.london
-                            )
-                        }
-
-                        item {
-                            TravelPlanCard(
-                                cityName = "뉴욕",
-                                flagText = "\uD83C\uDDFA\uD83C\uDDF8",
-                                imageRes = R.drawable.newyork
-                            )
+                        if (trips.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(270.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "예정된 여행이 없습니다.",
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color.DarkGray
+                                    )
+                                }
+                            }
+                        } else {
+                            items(trips) { trip ->
+                                TravelPlanCard(
+                                    cityName = trip.country,
+                                    flagText = trip.countryEmoji,
+                                    imageRes = coverResForCountry(trip.country) ?: R.drawable.newyork
+                                )
+                            }
                         }
                     }
                 }

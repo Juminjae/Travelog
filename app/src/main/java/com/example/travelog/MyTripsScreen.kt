@@ -1,5 +1,6 @@
 package com.example.travelog
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,40 +13,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.lightColorScheme
-import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -54,7 +36,7 @@ import kotlin.math.abs
 import androidx.navigation.compose.rememberNavController
 
 // ------------------------------
-// 모델
+// 모델 (위 코드 유지)
 // ------------------------------
 data class Trip(
     val id: String,
@@ -62,13 +44,10 @@ data class Trip(
     val country: String,
     val targetDateMillis: Long,
     val members: List<String>,
-    val coverColor: Color = Color(0xFFE8F0FE)
+    val coverColor: Color = Color.White
 )
 
-// ✅ 처음엔 아무 카드도 안 보이게
-fun demoTrips(): List<Trip> = emptyList()
-
-private fun emojiForCountry(input: String): String {
+fun emojiForCountry(input: String): String {
     val s = input.trim().lowercase()
     return when {
         listOf("일본", "japan", "jp", "도쿄", "오사카", "삿포로").any { s.contains(it) } -> "🇯🇵"
@@ -80,50 +59,40 @@ private fun emojiForCountry(input: String): String {
     }
 }
 
+fun coverResForCountry(input: String): Int? {
+    val s = input.trim().lowercase()
+    return when {
+        listOf("일본", "japan", "jp", "도쿄", "오사카", "삿포로").any { s.contains(it) } -> R.drawable.sapporo
+        listOf("영국", "uk", "united kingdom", "런던", "london").any { s.contains(it) } -> R.drawable.london
+        else -> null
+    }
+}
+
 // ------------------------------
-// 루트 라우팅
+// ✅ TravelApp: (아래 코드 로직 적용) vm + rememberSaveable 라우팅
 // ------------------------------
 @Composable
-fun TravelApp() {
+fun TravelApp(vm: TripsViewModel = viewModel()) {
     MaterialTheme(colorScheme = lightColorScheme()) {
-        val navController = rememberNavController()
-        var route by remember { mutableStateOf("list") }
-        var selectedTripId by remember { mutableStateOf<String?>(null) }
 
-        var trips by remember { mutableStateOf(demoTrips()) }
-
-        fun updateTrip(id: String, updater: (Trip) -> Trip) {
-            trips = trips.map { if (it.id == id) updater(it) else it }
-        }
-
-        fun addTrip(country: String, dateMillis: Long): String {
-            val id = System.currentTimeMillis().toString()
-            trips = trips + Trip(
-                id = id,
-                countryEmoji = emojiForCountry(country),
-                country = country.trim(),
-                targetDateMillis = dateMillis,
-                members = emptyList()
-            )
-            return id
-        }
+        var route by rememberSaveable { mutableStateOf("list") }
+        var selectedTripId by rememberSaveable { mutableStateOf<String?>(null) }
 
         when (route) {
             "list" -> MyTripsScreen(
-                trips = trips,
-                onGoArchive = { route = "archive" },
+                trips = vm.trips,   // ✅ 위 코드의 trips state 대신 vm.trips 사용
                 onGoBudget = { trip ->
                     selectedTripId = trip.id
                     route = "budget"
                 },
                 onChangeDate = { tripId, newMillis ->
-                    updateTrip(tripId) { it.copy(targetDateMillis = newMillis) }
+                    vm.updateDate(tripId, newMillis)
                 },
                 onAddMember = { tripId, name ->
-                    updateTrip(tripId) { it.copy(members = it.members + name.trim()) }
+                    vm.addMember(tripId, name)
                 },
                 onCreateTrip = { country, dateMillis ->
-                    addTrip(country, dateMillis)
+                    vm.addTrip(country, dateMillis) // ✅ “만들기(+버튼)”에서만 vm 적용 핵심
                 }
             )
 
@@ -136,13 +105,17 @@ fun TravelApp() {
             }
 
             "budget" -> {
-                val selectedTrip = trips.firstOrNull { it.id == selectedTripId }
-
-                // ✅ 너 프로젝트에 있는 TripBudgetScreen 그대로 호출
-                TripBudgetScreen(
-                    tripTitle = selectedTrip?.country ?: "여행",
-                    onBack = { route = "list" }
-                )
+                val selectedTrip = vm.findTrip(selectedTripId)
+                if (selectedTrip == null) {
+                    route = "list"
+                } else {
+                    TripBudgetScreen(
+                        tripTitle = selectedTrip.country,
+                        onBack = { route = "list" },
+                        tripId = selectedTrip.id,
+                        vm = vm
+                    )
+                }
             }
         }
     }
@@ -150,6 +123,7 @@ fun TravelApp() {
 
 // ------------------------------
 // 화면 1: 내 여행 리스트 (+ 버튼으로 여행 생성)
+// ✅ UI 템플릿은 “맨 위 코드” 그대로 유지
 // ------------------------------
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -159,40 +133,41 @@ fun MyTripsScreen(
     onGoBudget: (Trip) -> Unit,
     onChangeDate: (String, Long) -> Unit,
     onAddMember: (String, String) -> Unit,
-    onCreateTrip: (country: String, dateMillis: Long) -> String, // return newTripId
+    onCreateTrip: (country: String, dateMillis: Long) -> String,
 ) {
-    // 여행 추가 다이얼로그
     var showCreateTrip by remember { mutableStateOf(false) }
 
-    // 여행 추가 직후 사람 추가 팝업 자동
     var pendingAddMemberTripId by remember { mutableStateOf<String?>(null) }
     var showAddMemberPopup by remember { mutableStateOf(false) }
     var newMemberName by remember { mutableStateOf("") }
 
-    // “여행 생성” 다이얼로그 내부 상태
     val zone = ZoneId.systemDefault()
-    val todayMillis = remember {
-        LocalDate.now().atStartOfDay(zone).toInstant().toEpochMilli()
-    }
+    val todayMillis = remember { LocalDate.now().atStartOfDay(zone).toInstant().toEpochMilli() }
+
     var createCountry by remember { mutableStateOf("") }
     var createDateMillis by remember { mutableStateOf(todayMillis) }
     var showCreateDatePicker by remember { mutableStateOf(false) }
-    val createDatePickerState = rememberDatePickerState(initialSelectedDateMillis = createDateMillis)
+
+    val createDatePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = createDateMillis
+    )
+
+// createDateMillis가 바뀌면 DatePickerState도 따라가게
+    LaunchedEffect(createDateMillis) {
+        createDatePickerState.selectedDateMillis = createDateMillis
+    }
 
     if (showCreateDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showCreateDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
-                    val sel = createDatePickerState.selectedDateMillis
-                    if (sel != null) createDateMillis = sel
+                    createDatePickerState.selectedDateMillis?.let { createDateMillis = it }
                     showCreateDatePicker = false
                 }) { Text("확인") }
             },
             dismissButton = { TextButton(onClick = { showCreateDatePicker = false }) { Text("취소") } }
-        ) {
-            DatePicker(state = createDatePickerState)
-        }
+        ) { DatePicker(state = createDatePickerState) }
     }
 
     val createDateLabel = remember(createDateMillis) {
@@ -222,9 +197,11 @@ fun MyTripsScreen(
                 TextButton(onClick = {
                     val country = createCountry.trim()
                     if (country.isNotEmpty()) {
+                        // ✅ 여기서만 “아래 코드(vm)” 방식으로 실제 저장
                         val newId = onCreateTrip(country, createDateMillis)
                         pendingAddMemberTripId = newId
                         showAddMemberPopup = true
+
                         createCountry = ""
                         showCreateTrip = false
                     }
@@ -239,7 +216,6 @@ fun MyTripsScreen(
         )
     }
 
-    // 생성 직후 멤버 추가 팝업
     if (showAddMemberPopup) {
         AlertDialog(
             onDismissRequest = {
@@ -275,50 +251,16 @@ fun MyTripsScreen(
             }
         )
     }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "내 여행",
-            color = Color.Black,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.width(180.dp))
 
-
-        Icon(
-            painter = painterResource(id = R.drawable.icon_bookmark),
-            contentDescription = "저장",
-            tint = Color.Black,
-            modifier = Modifier
-                .size(56.dp)
-                .padding(10.dp)
-                .clickable { println("Bookmark clicked") }
-        )
-
-        Spacer(modifier = Modifier.width(1.dp))
-
-        Icon(
-            painter = painterResource(id = R.drawable.icon_notification),
-            contentDescription = "알림",
-            tint = Color.Black,
-            modifier = Modifier
-                .size(56.dp)
-                .padding(10.dp)
-                .clickable { println("Bookmark clicked") }
-        )
-    }
-
-    Scaffold() {
+    // ✅ 위 코드 템플릿(상단 Row + 아이콘 + TabRowLike + 리스트 + 맨 아래 + 카드) 유지
+    Scaffold( containerColor = Color.White ) { innerPadding ->
         Column(
             modifier = Modifier
                 .padding(horizontal = 0.dp, vertical = 0.dp)
                 .fillMaxSize()
         ) {
+
+            // (위 코드에 있던 상단 Row 1개만 남김 — 중복이었음)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -331,8 +273,7 @@ fun MyTripsScreen(
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Spacer(modifier = Modifier.width(180.dp))
-
+                Spacer(modifier = Modifier.width(181.dp))
 
                 Icon(
                     painter = painterResource(id = R.drawable.icon_bookmark),
@@ -341,10 +282,7 @@ fun MyTripsScreen(
                     modifier = Modifier
                         .size(56.dp)
                         .padding(10.dp)
-                        .clickable { println("Bookmark clicked") }
                 )
-
-                Spacer(modifier = Modifier.width(1.dp))
 
                 Icon(
                     painter = painterResource(id = R.drawable.icon_notification),
@@ -353,7 +291,6 @@ fun MyTripsScreen(
                     modifier = Modifier
                         .size(56.dp)
                         .padding(10.dp)
-                        .clickable { println("Bookmark clicked") }
                 )
             }
 
@@ -366,6 +303,7 @@ fun MyTripsScreen(
                     }
                 }
             )
+
             Spacer(Modifier.height(8.dp))
 
             LazyColumn(
@@ -373,7 +311,6 @@ fun MyTripsScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // ✅ trips가 비어있으면 카드 0개 => +만 보임
                 items(trips) { trip ->
                     TripCard(
                         trip = trip,
@@ -383,10 +320,7 @@ fun MyTripsScreen(
                     )
                 }
 
-                // ✅ 첫번째 사진처럼 맨 아래 “+ 버튼만 있는 카드”
-                item {
-                    AddTripCard(onClick = { showCreateTrip = true })
-                }
+                item { AddTripCard(onClick = { showCreateTrip = true }) }
             }
         }
     }
@@ -429,22 +363,27 @@ private fun TripCard(
     val dateLabel = "%04d.%02d.%02d".format(targetDate.year, targetDate.monthValue, targetDate.dayOfMonth)
 
     var showDatePicker by remember { mutableStateOf(false) }
-    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = trip.targetDateMillis)
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = trip.targetDateMillis
+    )
+
+// trip의 날짜가 바뀌면 DatePickerState도 따라가게
+    LaunchedEffect(trip.targetDateMillis) {
+        datePickerState.selectedDateMillis = trip.targetDateMillis
+    }
+
 
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
-                    val selected = datePickerState.selectedDateMillis
-                    if (selected != null) onChangeDate(selected)
+                    datePickerState.selectedDateMillis?.let { onChangeDate(it) }
                     showDatePicker = false
                 }) { Text("확인") }
             },
             dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("취소") } }
-        ) {
-            DatePicker(state = datePickerState)
-        }
+        ) { DatePicker(state = datePickerState) }
     }
 
     var showAddMember by remember { mutableStateOf(false) }
@@ -472,12 +411,7 @@ private fun TripCard(
                     }
                 }) { Text("저장") }
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    newMemberName = ""
-                    showAddMember = false
-                }) { Text("취소") }
-            }
+            dismissButton = { TextButton(onClick = { showAddMember = false }) { Text("취소") } }
         )
     }
 
@@ -487,21 +421,38 @@ private fun TripCard(
             .height(240.dp),
         shape = RoundedCornerShape(20.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(trip.coverColor)
-        ) {
+        val coverRes = remember(trip.country) { coverResForCountry(trip.country) }
 
+        Box(modifier = Modifier.fillMaxSize()) {
 
-            // 왼쪽 위 날짜
+            if (coverRes != null) {
+                Image(
+                    painter = painterResource(id = coverRes),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    alpha = 0.5f
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.15f))
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(trip.coverColor)
+                )
+            }
+
             Text(
                 text = dateLabel,
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(start = 24.dp, top = 16.dp),
                 fontSize = 12.sp,
-                color = Color(0xFF777777)
+                color = Color.White
             )
 
             Box(
@@ -511,29 +462,26 @@ private fun TripCard(
             ) {
                 Column(
                     horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(14.dp) // ✅ japan ↕ D-day 간격
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    // 나라/도시
                     Text(
                         text = "${trip.countryEmoji}  ${trip.country}",
                         fontSize = 14.sp,
-                        color = Color.Black.copy(alpha = 0.8f)
+                        color = Color.White
                     )
 
-                    // D-day (오른쪽, 눌러서 날짜 변경)
                     Text(
                         text = if (diffDays >= 0) "D-$diffDays" else "D+${abs(diffDays)}",
-                        modifier = Modifier.padding(top = 12.dp).clickable { showDatePicker = true },
+                        modifier = Modifier
+                            .padding(top = 12.dp)
+                            .clickable { showDatePicker = true },
                         fontSize = 44.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = Color.Black.copy(alpha = 0.85f)
+                        color = Color.Black
                     )
                 }
             }
 
-
-
-            // 아래: 사람들(이름 전체 표시) + 여행비용 버튼
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
@@ -564,16 +512,27 @@ private fun TripCard(
                     }
                 }
 
-                OutlinedButton(
+                Button(
                     onClick = onGoBudget,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("여행 비용")
-                }
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .alpha(0.8f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White,
+                        contentColor = Color.Black
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 0.dp,
+                        pressedElevation = 0.dp,
+                        focusedElevation = 0.dp,
+                        hoveredElevation = 0.dp
+                    )
+                ) { Text("여행 비용") }
             }
         }
     }
 }
+
 
 @Composable
 private fun MemberPill(name: String) {
@@ -625,37 +584,12 @@ private fun AddTripCard(onClick: () -> Unit) {
     }
 }
 
-//@Composable
-//fun BottomNavBar() {
-//    NavigationBar {
-//        NavigationBarItem(
-//            selected = true,
-//            onClick = { },
-//            icon = { Icon(Icons.Filled.Home, contentDescription = "홈") }
-//        )
-//        NavigationBarItem(
-//            selected = false,
-//            onClick = { },
-//            icon = { Icon(Icons.Filled.List, contentDescription = "리스트") }
-//        )
-//        NavigationBarItem(
-//            selected = false,
-//            onClick = { },
-//            icon = { Icon(Icons.Filled.MoreVert, contentDescription = "더보기") }
-//        )
-//    }
-//}
-
-// ------------------------------
-// Preview
-// ------------------------------
 @Preview(showBackground = true, widthDp = 390, heightDp = 844)
 @Composable
 private fun PreviewMyTrips() {
     MaterialTheme {
         MyTripsScreen(
-            trips = demoTrips(), // ✅ emptyList()
-            onGoArchive = {},
+            trips = emptyList(),
             onGoBudget = {},
             onChangeDate = { _, _ -> },
             onAddMember = { _, _ -> },
