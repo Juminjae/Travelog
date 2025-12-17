@@ -1,7 +1,9 @@
 package com.example.travelog
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -14,10 +16,18 @@ fun MainNavHost(
     NavHost(
         navController = navController,
         startDestination = BottomNavItem.Home.route,
-        modifier = modifier
+        modifier = modifier,
+        route = "main"
     ) {
         composable(BottomNavItem.Home.route) {
-            HomeScreen(navController = navController)
+            val parentEntry = remember(navController) {
+                navController.getBackStackEntry("main")
+            }
+            val tripsVm: TripsViewModel = viewModel(parentEntry)
+
+            HomeScreen(
+                navController = navController,
+                tripsVm = tripsVm)
         }
         composable(BottomNavItem.Map.route) {
             MapScreen()
@@ -38,10 +48,12 @@ fun MainNavHost(
             ChecklistScreen()
         }
         composable("plans") {
-            TravelApp()
+            val parentEntry = remember(navController) {
+                navController.getBackStackEntry("main")
+            }
+            val tripsVm: TripsViewModel = viewModel(parentEntry)
+
+            TravelApp(vm = tripsVm)
         }
-//        composable("budget") {
-//            TripBudgetScreen()
-//        }
     }
 }
