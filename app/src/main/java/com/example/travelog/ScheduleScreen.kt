@@ -31,7 +31,7 @@ fun ScheduleScreen() {
             .background(Color.White)
             .padding(horizontal = 20.dp)
     ) {
-        Spacer(Modifier.height(30.dp))
+        Spacer(Modifier.height(20.dp))
         Text("캘린더", fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(16.dp))
         CalendarHeader(
@@ -56,9 +56,7 @@ fun ScheduleScreen() {
     }
 }
 
-/* ===============================
-   캘린더 헤더
-================================ */
+/* 캘린더 헤더 */
 
 @Composable
 fun CalendarHeader(
