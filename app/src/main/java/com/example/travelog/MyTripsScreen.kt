@@ -51,6 +51,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
+import androidx.navigation.compose.rememberNavController
 
 // ------------------------------
 // 모델
@@ -85,6 +86,7 @@ private fun emojiForCountry(input: String): String {
 @Composable
 fun TravelApp() {
     MaterialTheme(colorScheme = lightColorScheme()) {
+        val navController = rememberNavController()
         var route by remember { mutableStateOf("list") }
         var selectedTripId by remember { mutableStateOf<String?>(null) }
 
@@ -109,6 +111,7 @@ fun TravelApp() {
         when (route) {
             "list" -> MyTripsScreen(
                 trips = trips,
+                onGoArchive = { route = "archive" },
                 onGoBudget = { trip ->
                     selectedTripId = trip.id
                     route = "budget"
@@ -123,6 +126,14 @@ fun TravelApp() {
                     addTrip(country, dateMillis)
                 }
             )
+
+            "archive" -> {
+                ArchiveScreen(
+                    navController = navController,
+                    cityList = listOf("빈", "런던", "삿포로"),
+                    onGoPlannedTrips = { route = "list" }
+                )
+            }
 
             "budget" -> {
                 val selectedTrip = trips.firstOrNull { it.id == selectedTripId }
@@ -144,6 +155,7 @@ fun TravelApp() {
 @Composable
 fun MyTripsScreen(
     trips: List<Trip>,
+    onGoArchive: () -> Unit,
     onGoBudget: (Trip) -> Unit,
     onChangeDate: (String, Long) -> Unit,
     onAddMember: (String, String) -> Unit,
@@ -347,7 +359,12 @@ fun MyTripsScreen(
 
             TabRowLike(
                 tabs = listOf("예정된 여행", "지난 여행"),
-                selected = 0
+                selected = 0,
+                onSelect = { index ->
+                    if (index == 1) {
+                        onGoArchive()
+                    }
+                }
             )
             Spacer(Modifier.height(8.dp))
 
@@ -376,7 +393,7 @@ fun MyTripsScreen(
 }
 
 @Composable
-private fun TabRowLike(tabs: List<String>, selected: Int) {
+private fun TabRowLike(tabs: List<String>, selected: Int, onSelect: (Int) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -388,7 +405,8 @@ private fun TabRowLike(tabs: List<String>, selected: Int) {
                 text = title,
                 modifier = Modifier
                     .padding(end = 16.dp)
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = 8.dp)
+                    .clickable{ onSelect(index) },
                 fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
                 color = if (active) Color.Black else Color(0xFF777777)
             )
@@ -637,6 +655,7 @@ private fun PreviewMyTrips() {
     MaterialTheme {
         MyTripsScreen(
             trips = demoTrips(), // ✅ emptyList()
+            onGoArchive = {},
             onGoBudget = {},
             onChangeDate = { _, _ -> },
             onAddMember = { _, _ -> },
