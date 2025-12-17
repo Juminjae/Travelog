@@ -33,6 +33,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
+import androidx.navigation.compose.rememberNavController
 
 // ------------------------------
 // 모델 (위 코드 유지)
@@ -95,6 +96,14 @@ fun TravelApp(vm: TripsViewModel = viewModel()) {
                 }
             )
 
+            "archive" -> {
+                ArchiveScreen(
+                    navController = navController,
+                    cityList = listOf("빈", "런던", "삿포로"),
+                    onGoPlannedTrips = { route = "list" }
+                )
+            }
+
             "budget" -> {
                 val selectedTrip = vm.findTrip(selectedTripId)
                 if (selectedTrip == null) {
@@ -120,6 +129,7 @@ fun TravelApp(vm: TripsViewModel = viewModel()) {
 @Composable
 fun MyTripsScreen(
     trips: List<Trip>,
+    onGoArchive: () -> Unit,
     onGoBudget: (Trip) -> Unit,
     onChangeDate: (String, Long) -> Unit,
     onAddMember: (String, String) -> Unit,
@@ -286,7 +296,12 @@ fun MyTripsScreen(
 
             TabRowLike(
                 tabs = listOf("예정된 여행", "지난 여행"),
-                selected = 0
+                selected = 0,
+                onSelect = { index ->
+                    if (index == 1) {
+                        onGoArchive()
+                    }
+                }
             )
 
             Spacer(Modifier.height(8.dp))
@@ -312,7 +327,7 @@ fun MyTripsScreen(
 }
 
 @Composable
-private fun TabRowLike(tabs: List<String>, selected: Int) {
+private fun TabRowLike(tabs: List<String>, selected: Int, onSelect: (Int) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -324,7 +339,8 @@ private fun TabRowLike(tabs: List<String>, selected: Int) {
                 text = title,
                 modifier = Modifier
                     .padding(end = 16.dp)
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = 8.dp)
+                    .clickable{ onSelect(index) },
                 fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
                 color = if (active) Color.Black else Color(0xFF777777)
             )

@@ -5,9 +5,10 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [ChecklistEntity::class], version = 1)
+@Database(entities = [ChecklistEntity::class, ArchivePhotoEntity::class, ArchiveCommentEntity::class], version = 3)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun checklistDao(): ChecklistDao
+    abstract fun archiveDao(): ArchiveDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -18,7 +19,10 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "travelog.db"
-                ).build().also { INSTANCE = it }
+                )
+                    .fallbackToDestructiveMigration()
+                    .build()
+                    .also { INSTANCE = it }
             }
     }
 }
