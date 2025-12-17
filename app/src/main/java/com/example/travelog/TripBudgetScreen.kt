@@ -1,6 +1,5 @@
 package com.example.travelog
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -9,7 +8,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Flight
+import androidx.compose.material.icons.filled.Hotel
+import androidx.compose.material.icons.filled.Redeem
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,25 +36,11 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.max
 
-// ==============================
-// Colors (화이트톤)
-// ==============================
-private val AppBg = Color(0xFFF7F8FA)
-private val CardBg = Color.White
-private val CardBorder = Color(0xFFE7EAF0)
-private val TextPrimary = Color(0xFF111827)
-private val TextSub = Color(0xFF6B7280)
-private val FieldBg = Color(0xFFF9FAFB)
-private val ChipBg = Color(0xFFEFF2F7)
-private val TrackBg = Color(0xFFEFF2F7)
-private val PrimaryBlue = Color(0xFF3A6FF7)
 
-private val CardShape = RoundedCornerShape(18.dp)
-private val InnerCardShape = RoundedCornerShape(14.dp)
 
-// ==============================
-// Data
-// ==============================
+
+
+
 enum class Category(val label: String) {
     FLIGHT("항공권"),
     HOTEL("숙소비"),
@@ -69,141 +62,107 @@ data class Expense(
 )
 
 // ==============================
-// Reusable Card
-// ==============================
-@Composable
-private fun AppCard(
-    modifier: Modifier = Modifier,
-    innerPadding: PaddingValues = PaddingValues(16.dp),
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Card(
-        modifier = modifier,
-        shape = CardShape,
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        border = BorderStroke(1.dp, CardBorder)
-    ) {
-        Column(
-            Modifier.fillMaxWidth().padding(innerPadding),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            content = content
-        )
-    }
-}
-
-@Composable
-private fun SoftDivider(modifier: Modifier = Modifier) {
-    Divider(modifier = modifier, thickness = 1.dp, color = Color(0xFFF0F2F6))
-}
-
-// ==============================
 // Screen
 // ==============================
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TripBudgetScreen(
-    tripId: String,
     tripTitle: String,
     onBack: () -> Unit,
-    vm: TripsViewModel
 ) {
-    // ✅ VM에서 tripId별 상태 가져오기 (나갔다 와도 유지)
-    val st = vm.budgetState(tripId)
-    val totalBudgetText = st.totalBudgetText
-    val expenses = st.expenses
-
+    // ✅ 총 예산 입력 (초기값 0 = 빈칸)
+    var totalBudgetText by remember { mutableStateOf("") }
     val totalBudget = totalBudgetText.filter { it.isDigit() }.toIntOrNull() ?: 0
 
-    // ✅ expenses.add(...) 하면 즉시 그래프/합계 갱신
-    val used by remember { derivedStateOf { expenses.sumOf { it.amount } } }
-    val remaining by remember { derivedStateOf { totalBudget - used } }
+    // ✅ 지출 상태(초기 빈 리스트)
+    var expenses by remember { mutableStateOf<List<Expense>>(emptyList()) }
 
-    val categoryTotals by remember {
-        derivedStateOf {
-            Category.entries.associateWith { c ->
-                expenses.filter { it.category == c }.sumOf { it.amount }
-            }
+    // ✅ 사용/잔액
+    val used = remember(expenses) { expenses.sumOf { it.amount } }
+    val remaining = totalBudget - used
+
+    // ✅ 카테고리 합계(파이차트)
+    val categoryTotals = remember(expenses) {
+        Category.entries.associateWith { c ->
+            expenses.filter { it.category == c }.sumOf { it.amount }
         }
     }
 
-    val dailyCategory by remember { derivedStateOf { buildDailyCategoryTotals(expenses.toList()) } }
-    val dailyDates by remember { derivedStateOf { dailyCategory.keys.sorted() } }
-    val maxDaily by remember {
-        derivedStateOf { dailyCategory.values.maxOfOrNull { map -> map.values.sum() } ?: 0 }
+    // ✅ 날짜별(하루) 카테고리 합계(막대그래프)
+    val dailyCategory = remember(expenses) { buildDailyCategoryTotals(expenses) }
+    val dailyDates = remember(dailyCategory) { dailyCategory.keys.sorted() }
+    val maxDaily = remember(dailyCategory) {
+        dailyCategory.values.maxOfOrNull { map -> map.values.sum() } ?: 0
     }
 
-    val cardSum by remember { derivedStateOf { expenses.filter { it.pay == PayMethod.CARD }.sumOf { it.amount } } }
-    val cashSum by remember { derivedStateOf { expenses.filter { it.pay == PayMethod.CASH }.sumOf { it.amount } } }
+    // ✅ 결제수단 합계(카드/현금)
+    val cardSum = remember(expenses) { expenses.filter { it.pay == PayMethod.CARD }.sumOf { it.amount } }
+    val cashSum = remember(expenses) { expenses.filter { it.pay == PayMethod.CASH }.sumOf { it.amount } }
 
+    // ✅ 지출 추가 다이얼로그 상태
     var showAdd by remember { mutableStateOf(false) }
 
     if (showAdd) {
         AddExpenseDialog(
             onDismiss = { showAdd = false },
             onSave = { e ->
-                vm.addExpense(tripId, e) // ✅ VM에 저장
+                expenses = expenses + e
                 showAdd = false
             }
         )
     }
 
     Scaffold(
-        containerColor = AppBg,
         topBar = {
-            CenterAlignedTopAppBar(
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = AppBg,
-                    titleContentColor = TextPrimary,
-                    navigationIconContentColor = TextPrimary
-                ),
+            TopAppBar(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "뒤로")
                     }
                 },
-                title = { Text("여행 비용", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+                title = { Text("여행 비용", fontSize = 22.sp, fontWeight = FontWeight.Bold) }
             )
         },
+//        bottomBar = { BottomNavBar() }
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
                 .padding(innerPadding)
-                .fillMaxSize()
-                .background(AppBg),
+                .fillMaxSize(),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
 
             // [0] 총예산 입력
             item {
-                AppCard {
-                    Text("총 예산", fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                    TextField(
-                        value = totalBudgetText,
-                        onValueChange = { vm.setTotalBudgetText(tripId, it) }, // ✅ VM에 저장
-                        singleLine = true,
-                        placeholder = { Text("예: 1500000", color = TextSub) },
-                        supportingText = { Text("숫자만 입력해주세요", color = TextSub) },
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = FieldBg,
-                            unfocusedContainerColor = FieldBg,
-                            disabledContainerColor = FieldBg,
-                            focusedIndicatorColor = PrimaryBlue,
-                            unfocusedIndicatorColor = CardBorder,
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary,
-                            cursorColor = PrimaryBlue
+                Card(shape = RoundedCornerShape(16.dp)) {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("총 예산", fontWeight = FontWeight.SemiBold)
+                        TextField(
+                            value = totalBudgetText,
+                            onValueChange = { totalBudgetText = it },
+                            singleLine = true,
+                            placeholder = { Text("예: 1500000") },
+                            supportingText = { Text("숫자만 입력해주세요") }
                         )
-                    )
+                    }
                 }
             }
 
-            // [1] 예산 카드 + 파이차트
+            // [1] 예산 카드 + 파이차트 (지출 추가 시 변동)
             item {
-                AppCard(innerPadding = PaddingValues(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Card(shape = RoundedCornerShape(16.dp)) {
+                    Row(
+                        Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
                             StatRow("총 예산", totalBudget)
                             StatRow("사용 금액", used)
                             StatRow("잔액", remaining)
@@ -218,30 +177,33 @@ fun TripBudgetScreen(
                 }
             }
 
-            // [2] 환율 정보
+            // [2] 환율 정보 (일단 고정)
             item {
                 ExpandableSection(title = "환율 정보") {
-                    Text("현재 환율: 1 JPY ≈ 9.2 KRW", color = TextPrimary)
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp)
+                    ) {
+                        Text("현재 환율: 1 JPY ≈ 9.2 KRW")
+                    }
                 }
             }
 
-            // [3] 지출 내역
+            // [3] 지출 내역 (지출 추가 버튼 + 막대그래프)
             item {
                 ExpandableSection(title = "지출 내역") {
                     Column(
-                        Modifier.fillMaxWidth(),
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.End
                         ) {
-                            OutlinedButton(
-                                onClick = { showAdd = true },
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, CardBorder),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary)
-                            ) {
+                            OutlinedButton(onClick = { showAdd = true }) {
                                 Icon(Icons.Filled.Add, contentDescription = null)
                                 Spacer(Modifier.width(6.dp))
                                 Text("지출 추가")
@@ -251,19 +213,17 @@ fun TripBudgetScreen(
                         if (expenses.isEmpty()) {
                             Text(
                                 "아직 지출 내역이 없어요.\n'지출 추가' 버튼으로 입력해주세요",
-                                color = TextSub
+                                color = Color(0xFF777777)
                             )
                         } else {
-                            val sorted = expenses.sortedBy { it.dateMillis }
-                            sorted.forEachIndexed { idx, e ->
-                                ExpenseRow(e)
-                                if (idx != sorted.lastIndex) {
-                                    SoftDivider(Modifier.padding(vertical = 8.dp))
-                                }
-                            }
+                            // 지출 리스트
+                            expenses
+                                .sortedBy { it.dateMillis }
+                                .forEach { ExpenseRow(it) }
 
                             Spacer(Modifier.height(8.dp))
 
+                            // 날짜별 사용량 막대그래프 (카테고리 스택)
                             DailyStackedBarChart(
                                 dates = dailyDates,
                                 totalsByDate = dailyCategory,
@@ -275,15 +235,17 @@ fun TripBudgetScreen(
                 }
             }
 
-            // [4] 결제 수단
+            // [4] 결제 수단 (카드/현금 비율 그래프, 최대는 총 예산)
             item {
                 ExpandableSection(title = "결제 수단") {
                     Column(
-                        Modifier.fillMaxWidth(),
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         if (totalBudget <= 0) {
-                            Text("총 예산을 먼저 입력해주세요", color = TextSub)
+                            Text("총 예산을 먼저 입력해주세요", color = Color(0xFF777777))
                         }
                         PaymentRatioBar(
                             card = cardSum,
@@ -298,8 +260,9 @@ fun TripBudgetScreen(
 }
 
 // ==============================
-// Add Expense Dialog
+// Add Expense Dialog (카테고리 + 결제수단 + 캘린더)
 // ==============================
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddExpenseDialog(
@@ -310,8 +273,11 @@ private fun AddExpenseDialog(
     var pay by remember { mutableStateOf(PayMethod.CARD) }
     var amountText by remember { mutableStateOf("") }
 
+    // 날짜: 캘린더 선택
     val zone = ZoneId.systemDefault()
-    val todayMillis = remember { LocalDate.now().atStartOfDay(zone).toInstant().toEpochMilli() }
+    val todayMillis = remember {
+        LocalDate.now().atStartOfDay(zone).toInstant().toEpochMilli()
+    }
     var selectedDateMillis by remember { mutableStateOf(todayMillis) }
 
     var showDatePicker by remember { mutableStateOf(false) }
@@ -322,12 +288,17 @@ private fun AddExpenseDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let { selectedDateMillis = it }
+                    val sel = datePickerState.selectedDateMillis
+                    if (sel != null) selectedDateMillis = sel
                     showDatePicker = false
                 }) { Text("확인") }
             },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("취소") } }
-        ) { DatePicker(state = datePickerState) }
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("취소") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
     }
 
     val dateLabel = remember(selectedDateMillis) {
@@ -337,18 +308,18 @@ private fun AddExpenseDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("지출 추가", color = TextPrimary) },
+        title = { Text("지출 추가") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("날짜", fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                OutlinedButton(
-                    onClick = { showDatePicker = true },
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, CardBorder),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary)
-                ) { Text(dateLabel) }
 
-                Text("카테고리", fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                // 날짜 선택
+                Text("날짜", fontWeight = FontWeight.SemiBold)
+                OutlinedButton(onClick = { showDatePicker = true }) {
+                    Text(dateLabel)
+                }
+
+                // 카테고리
+                Text("카테고리", fontWeight = FontWeight.SemiBold)
                 ChipRow(
                     items = Category.entries,
                     selected = category,
@@ -356,7 +327,8 @@ private fun AddExpenseDialog(
                     onSelect = { category = it }
                 )
 
-                Text("결제 수단", fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                // 결제 수단
+                Text("결제 수단", fontWeight = FontWeight.SemiBold)
                 ChipRow(
                     items = PayMethod.entries,
                     selected = pay,
@@ -364,32 +336,34 @@ private fun AddExpenseDialog(
                     onSelect = { pay = it }
                 )
 
-                Text("금액(원)", fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                // 금액
+                Text("금액(원)", fontWeight = FontWeight.SemiBold)
                 TextField(
                     value = amountText,
                     onValueChange = { amountText = it },
-                    placeholder = { Text("예: 12500", color = TextSub) },
-                    singleLine = true,
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = FieldBg,
-                        unfocusedContainerColor = FieldBg,
-                        disabledContainerColor = FieldBg,
-                        focusedIndicatorColor = PrimaryBlue,
-                        unfocusedIndicatorColor = CardBorder,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        cursorColor = PrimaryBlue
-                    )
+                    placeholder = { Text("예: 12500") },
+                    singleLine = true
                 )
             }
         },
         confirmButton = {
             TextButton(onClick = {
                 val amt = amountText.filter { it.isDigit() }.toIntOrNull() ?: 0
-                if (amt > 0) onSave(Expense(selectedDateMillis, category, pay, amt))
+                if (amt > 0) {
+                    onSave(
+                        Expense(
+                            dateMillis = selectedDateMillis,
+                            category = category,
+                            pay = pay,
+                            amount = amt
+                        )
+                    )
+                }
             }) { Text("저장") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } }
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("취소") }
+        }
     )
 }
 
@@ -408,13 +382,13 @@ private fun <T> ChipRow(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(999.dp))
-                            .background(if (isSelected) PrimaryBlue else ChipBg)
+                            .background(if (isSelected) Color(0xFF3A6FF7) else Color(0xFFE9ECF3))
                             .clickable { onSelect(item) }
                             .padding(horizontal = 12.dp, vertical = 8.dp)
                     ) {
                         Text(
                             text = label(item),
-                            color = if (isSelected) Color.White else TextPrimary,
+                            color = if (isSelected) Color.White else Color.Black,
                             fontSize = 13.sp,
                             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
                         )
@@ -426,14 +400,14 @@ private fun <T> ChipRow(
 }
 
 // ==============================
-// UI helpers / Charts
+// UI helpers
 // ==============================
 
 @Composable
 private fun StatRow(label: String, amount: Int) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = TextSub, fontWeight = FontWeight.Medium)
-        Text("%,d원".format(amount), color = TextPrimary, fontWeight = FontWeight.SemiBold)
+        Text(label, fontWeight = FontWeight.Medium)
+        Text("%,d원".format(amount), fontWeight = FontWeight.Medium)
     }
 }
 
@@ -451,67 +425,62 @@ private fun ExpenseRow(item: Expense) {
         Category.OTHER -> Icons.Filled.CreditCard
     }
 
+    val payLabel = item.pay.label
+
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(date, modifier = Modifier.width(56.dp), color = TextSub)
+            Text(date, modifier = Modifier.width(56.dp), color = Color(0xFF666666))
             Spacer(Modifier.width(8.dp))
             Icon(icon, contentDescription = null, tint = categoryColor(item.category))
             Spacer(Modifier.width(8.dp))
-            Text(item.category.label, color = TextPrimary)
+            Text(item.category.label)
             Spacer(Modifier.width(8.dp))
-            Text("(${item.pay.label})", color = TextSub, fontSize = 12.sp)
+            Text("($payLabel)", color = Color(0xFF777777), fontSize = 12.sp)
         }
-        Text("%,d원".format(item.amount), textAlign = TextAlign.End, color = TextPrimary)
+        Text("%,d원".format(item.amount), textAlign = TextAlign.End)
     }
 }
 
 @Composable
-fun ExpandableSection(title: String, content: @Composable () -> Unit) {
+fun ExpandableSection(
+    title: String,
+    content: @Composable () -> Unit
+) {
     var expanded by remember { mutableStateOf(true) }
-
-    Card(
-        shape = CardShape,
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        border = BorderStroke(1.dp, CardBorder)
-    ) {
-        Column(Modifier.fillMaxWidth()) {
+    Card(shape = RoundedCornerShape(16.dp)) {
+        Column {
             Row(
                 Modifier
                     .fillMaxWidth()
                     .clickable { expanded = !expanded }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(title, fontWeight = FontWeight.SemiBold, color = TextPrimary, modifier = Modifier.weight(1f))
+                Text(title, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Icon(
                     imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                    contentDescription = null,
-                    tint = TextSub
+                    contentDescription = null
                 )
             }
-
-            if (expanded) {
-                SoftDivider()
-                Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) { content() }
-            }
+            if (expanded) content()
         }
     }
 }
 
+// ==============================
+// Charts
+// ==============================
+
 private fun categoryColor(c: Category): Color = when (c) {
-    Category.FLIGHT -> Color(0xFF4D8AF0)
-    Category.HOTEL -> Color(0xFF67C587)
-    Category.FOOD -> Color(0xFFF6C152)
-    Category.SOUVENIR -> Color(0xFFB06BF0)
-    Category.OTHER -> Color(0xFFDA6E6E)
+    Category.FLIGHT -> Color(0xFF4D8AF0)   // 파랑
+    Category.HOTEL -> Color(0xFF67C587)    // 초록
+    Category.FOOD -> Color(0xFFF6C152)     // 노랑
+    Category.SOUVENIR -> Color(0xFFB06BF0) // 보라
+    Category.OTHER -> Color(0xFFDA6E6E)    // 빨강
 }
 
 @Composable
@@ -542,9 +511,13 @@ fun PieChart(
         Column(horizontalAlignment = Alignment.Start) {
             labels.forEachIndexed { index, label ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(10.dp).background(colors[index % colors.size], CircleShape))
+                    Box(
+                        Modifier
+                            .size(10.dp)
+                            .background(colors[index % colors.size], CircleShape)
+                    )
                     Spacer(Modifier.width(6.dp))
-                    Text(label, fontSize = 12.sp, color = TextSub)
+                    Text(label, fontSize = 12.sp)
                 }
             }
         }
@@ -554,7 +527,11 @@ fun PieChart(
 private fun buildDailyCategoryTotals(expenses: List<Expense>): Map<LocalDate, Map<Category, Int>> {
     if (expenses.isEmpty()) return emptyMap()
     val zone = ZoneId.systemDefault()
-    val grouped = expenses.groupBy { Instant.ofEpochMilli(it.dateMillis).atZone(zone).toLocalDate() }
+
+    val grouped = expenses.groupBy { e ->
+        Instant.ofEpochMilli(e.dateMillis).atZone(zone).toLocalDate()
+    }
+
     return grouped.mapValues { (_, list) ->
         Category.entries.associateWith { c -> list.filter { it.category == c }.sumOf { it.amount } }
     }
@@ -570,17 +547,22 @@ private fun DailyStackedBarChart(
     if (dates.isEmpty()) return
 
     val formatter = remember { DateTimeFormatter.ofPattern("MM/dd") }
-    val gapDp = 10.dp
 
-    Card(
-        shape = InnerCardShape,
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        border = BorderStroke(1.dp, CardBorder)
-    ) {
-        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+    Card(shape = RoundedCornerShape(12.dp)) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            // 그래프 + 날짜 라벨을 같은 폭 계산으로 맞추려고
+            val gapDp = 10.dp
+
+            // ✅ 막대 그래프(Canvas)
             Canvas(
-                modifier = Modifier.fillMaxWidth().height(160.dp).padding(horizontal = 8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(160.dp)
+                    .padding(horizontal = 8.dp)
             ) {
                 val w = size.width
                 val h = size.height
@@ -591,6 +573,8 @@ private fun DailyStackedBarChart(
 
                 dates.forEachIndexed { idx, date ->
                     val totals = totalsByDate[date] ?: emptyMap()
+                    val dayTotal = totals.values.sum().coerceAtLeast(0)
+
                     val xLeft = idx * (barWidth + gap)
 
                     var yBottom = h
@@ -606,18 +590,54 @@ private fun DailyStackedBarChart(
                         )
                         yBottom = yTop
                     }
+
+                    // 0원인 날은 얇게
+                    if (dayTotal == 0) {
+                        drawRect(
+                            color = Color(0xFFE0E0E0),
+                            topLeft = Offset(xLeft, h - 2f),
+                            size = Size(barWidth, 2f)
+                        )
+                    }
                 }
             }
 
             Spacer(Modifier.height(8.dp))
 
+            // ✅ 각 막대 아래 날짜 라벨 (색/크기 기존 동일)
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(gapDp)
             ) {
                 dates.forEach { d ->
-                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        Text(d.format(formatter), fontSize = 12.sp, color = TextSub)
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            d.format(formatter),
+                            fontSize = 12.sp,
+                            color = Color(0xFF777777)
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // 범례
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Category.entries.forEach { cat ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier
+                                .size(10.dp)
+                                .background(colors[cat] ?: Color.Gray, CircleShape)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(cat.label, fontSize = 12.sp)
                     }
                 }
             }
@@ -625,43 +645,81 @@ private fun DailyStackedBarChart(
     }
 }
 
+
 @Composable
-private fun PaymentRatioBar(card: Int, cash: Int, maxBudget: Int) {
+private fun PaymentRatioBar(
+    card: Int,
+    cash: Int,
+    maxBudget: Int
+) {
+    val total = (card + cash).coerceAtLeast(1)
     val cardRatio = (card.toFloat() / maxBudget.toFloat()).coerceIn(0f, 1f)
     val cashRatio = (cash.toFloat() / maxBudget.toFloat()).coerceIn(0f, 1f)
 
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("카드", fontWeight = FontWeight.Medium, color = TextPrimary)
-            Text("%,d원".format(card), color = TextPrimary)
+            Text("카드", fontWeight = FontWeight.Medium)
+            Text("%,d원".format(card))
         }
-        Row(Modifier.fillMaxWidth().height(16.dp).clip(RoundedCornerShape(8.dp)).background(TrackBg)) {
-            Box(Modifier.fillMaxHeight().fillMaxWidth(cardRatio).background(PrimaryBlue))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(16.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFFE9ECF3))
+        ) {
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(cardRatio)
+                    .background(Color(0xFF3A6FF7))
+            )
         }
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("현금", fontWeight = FontWeight.Medium, color = TextPrimary)
-            Text("%,d원".format(cash), color = TextPrimary)
+            Text("현금", fontWeight = FontWeight.Medium)
+            Text("%,d원".format(cash))
         }
-        Row(Modifier.fillMaxWidth().height(16.dp).clip(RoundedCornerShape(8.dp)).background(TrackBg)) {
-            Box(Modifier.fillMaxHeight().fillMaxWidth(cashRatio).background(Color(0xFF67C587)))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(16.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFFE9ECF3))
+        ) {
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(cashRatio)
+                    .background(Color(0xFF67C587))
+            )
         }
+
+        Text(
+            "그래프 최대값 = 총 예산(%,d원)".format(maxBudget),
+            fontSize = 12.sp,
+            color = Color(0xFF777777)
+        )
     }
 }
+
+// ==============================
+// NOTE: 아래 BottomNavBar()는 네 프로젝트에 이미 있는 걸 그대로 쓰면 됨.
+// 여기 파일에서 BottomNavBar()가 없으면, 기존 파일에 있는 걸 import/같은 패키지로 두면 됨.
+// ==============================
 
 // ------------------------------
 // Preview
 // ------------------------------
+
 @Preview(showBackground = true, widthDp = 390, heightDp = 844)
 @Composable
 private fun PreviewBudgetScreen() {
-    val vm = remember { TripsViewModel() }
     MaterialTheme {
         TripBudgetScreen(
-            tripId = "preview-trip",
             tripTitle = "삿포로",
-            onBack = {},
-            vm = vm
+            onBack = {}
         )
     }
 }
+
