@@ -137,10 +137,7 @@ fun WeekHeader() {
     }
 }
 
-/* ===============================
-   CALENDAR GRID (여행 기간 점 표시)
-================================ */
-
+// CALENDAR GRID (여행 기간 점 표시)
 @Composable
 fun CalendarGrid(
     yearMonth: YearMonth,

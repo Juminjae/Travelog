@@ -42,48 +42,51 @@ import java.util.Locale
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 
+//여행 전체 정보를 담는 데이터(시간개념 필요X LocalDate)
 data class TripPlan(
     val startDate: LocalDate,
     val endDate: LocalDate,
     val destination: String
 )
-
+//하루에 추가되는 여행 장소 단위 (지도 마커표시로 LatLng)
 data class DayPlace(
     val title: String,
     val latLng: LatLng
 )
 
+//여행 상태관리
 class TripViewModel(
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
-
+    //저장할 key 값들
     companion object {
         private const val KEY_TRIP_JSON = "trip_json"
         private const val KEY_DAYPLACES_JSON = "dayplaces_json"
     }
-
+    //현재 여행 정보
     var tripPlan by mutableStateOf<TripPlan?>(null)
         private set
 
-    /* Day별 장소 목록 */
+    //Map 변경도 Compose 감지 가능
     val dayPlaces = mutableStateMapOf<Int, MutableList<DayPlace>>()
 
     init {
+        //ViewModel 생성 시에 이전 상태 복구
         restoreFromSavedState()
     }
 
+    //새 여행 생성
     fun createTrip(start: LocalDate, end: LocalDate, destination: String) {
         tripPlan = TripPlan(start, end, destination)
 
         dayPlaces.clear()
         val days = ChronoUnit.DAYS.between(start, end).toInt() + 1
         repeat(days) { idx ->
-            dayPlaces[idx + 1] = mutableListOf()
+            dayPlaces[idx + 1] = mutableListOf() //여행 일수 index + 1 값으로 생성
         }
-
         persistToSavedState()
     }
-
+    // 특정 날짜에 장소 추가
     fun addPlace(day: Int, place: DayPlace) {
         val current = dayPlaces[day] ?: mutableListOf()
         dayPlaces[day] = (current + place).toMutableList()
@@ -107,7 +110,7 @@ class TripViewModel(
         val trip = tripPlan
         if (trip != null) {
             val obj = JSONObject().apply {
-                put("startDate", trip.startDate.toString()) // ISO-8601
+                put("startDate", trip.startDate.toString())
                 put("endDate", trip.endDate.toString())
                 put("destination", trip.destination)
             }
@@ -185,7 +188,7 @@ class TripViewModel(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(
-    // ✅ 같은 Activity 범위로 ViewModel을 잡아서 화면 이동/재구성에도 데이터가 덜 날아가게
+    // 같은 Activity 범위로 ViewModel을 잡아서 화면 이동/재구성에도 데이터가 덜 날아가게
     tripViewModel: TripViewModel = run {
         val owner = (LocalContext.current as ComponentActivity)
         viewModel(viewModelStoreOwner = owner)
@@ -201,7 +204,7 @@ fun MapScreen(
         )
     }
 
-    // ✅ UI 상태도 저장(회전/프로세스 재생성 시) - 데이터 “날아감” 체감 줄이기
+    // UI 상태도 저장(회전/프로세스 재생성 시) - 데이터 “날아감” 체감 줄이기
     var showTripBottomSheet by rememberSaveable { mutableStateOf(false) }
     var showPlaceBottomSheet by rememberSaveable { mutableStateOf(false) }
     var selectedDay by rememberSaveable { mutableStateOf(1) }
@@ -217,13 +220,12 @@ fun MapScreen(
         }
     }
 
-    // ✅ trip이 새로 생겼는데 selectedDay가 범위 밖이면 보정
+    // trip이 새로 생겼는데 selectedDay가 범위 밖이면 보정
     LaunchedEffect(trip, totalDays) {
         if (trip != null && totalDays > 0 && selectedDay !in 1..totalDays) {
             selectedDay = 1
         }
     }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -248,7 +250,6 @@ fun MapScreen(
                 Text("+", fontSize = 20.sp)
             }
         }
-
         Box(
             modifier = Modifier
                 .padding(horizontal = 20.dp)
@@ -261,7 +262,7 @@ fun MapScreen(
                 modifier = Modifier.fillMaxSize(),
                 cameraPositionState = cameraPositionState
             ) {
-                // ✅ 선택된 Day의 장소들 마커 표시
+                // 선택된 Day의 장소들 마커 표시
                 placesForDay.forEach { p ->
                     Marker(
                         state = MarkerState(p.latLng),
@@ -271,7 +272,7 @@ fun MapScreen(
             }
         }
 
-        /* Day Buttons */
+        // Day Buttons
         if (trip != null) {
             DayButtonRow(
                 totalDays = totalDays,
@@ -331,7 +332,7 @@ fun MapScreen(
         }
     }
 
-    /* 여행 추가 BottomSheet */
+    // 여행 추가 BottomSheet
     if (showTripBottomSheet) {
         TravelAddBottomSheet(
             onDismiss = { showTripBottomSheet = false },
@@ -353,7 +354,7 @@ fun MapScreen(
                     if (added != null) {
                         tripViewModel.addPlace(selectedDay, added)
 
-                        // ✅ 지도 이동
+                        // 지도 이동
                         cameraPositionState.animate(
                             CameraUpdateFactory.newCameraPosition(
                                 CameraPosition.fromLatLngZoom(added.latLng, 13f)
@@ -398,7 +399,7 @@ fun DayButtonRow(
     }
 }
 
-/* 카드 UI (기존 카드 느낌 유지, title만 표시) */
+// 카드 UI (기존 카드 느낌 유지, title만 표시)
 @Composable
 fun DayPlaceCard(
     order: Int,
@@ -435,7 +436,7 @@ fun DayPlaceCard(
     }
 }
 
-/* Place Add BottomSheet - 이름만 입력 */
+// Place Add BottomSheet - 이름만 입력
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaceAddBottomSheet(
@@ -471,13 +472,14 @@ fun PlaceAddBottomSheet(
     }
 }
 
-/* ✅ TravelAddBottomSheet 정의 포함 */
+// TravelAddBottomSheet 정의 포함
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TravelAddBottomSheet(
     onDismiss: () -> Unit,
     onSave: (LocalDate, LocalDate, String) -> Unit
 ) {
+    // 상태 기억 및 UI 자동갱신 문법
     var startDate by remember { mutableStateOf<LocalDate?>(null) }
     var endDate by remember { mutableStateOf<LocalDate?>(null) }
     var destination by remember { mutableStateOf("") }
@@ -515,9 +517,7 @@ fun TravelAddBottomSheet(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
-
             Spacer(Modifier.height(24.dp))
-
             Button(
                 onClick = {
                     if (startDate != null && endDate != null && destination.isNotBlank()) {
@@ -530,7 +530,6 @@ fun TravelAddBottomSheet(
             ) {
                 Text("저장")
             }
-
             Spacer(Modifier.height(16.dp))
         }
     }
@@ -547,7 +546,7 @@ fun TravelAddBottomSheet(
     }
 }
 
-/* ✅ DateRangePickerDialog 정의 포함 */
+// DateRangePickerDialog 정의 포함
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DateRangePickerDialog(
@@ -579,7 +578,7 @@ fun DateRangePickerDialog(
     }
 }
 
-/* Utils */
+// 유틸
 @Composable
 fun DateBox(text: String, onClick: () -> Unit) {
     Box(
@@ -596,11 +595,10 @@ fun millisToLocalDate(millis: Long): LocalDate =
     java.time.Instant.ofEpochMilli(millis)
         .atZone(ZoneId.systemDefault())
         .toLocalDate()
-
 fun LocalDate.toSlashFormat(): String =
     this.format(DateTimeFormatter.ofPattern("yyyy/MM/dd"))
 
-/* 좌표 변환 */
+//좌표 변환
 suspend fun addPlaceByName(
     context: Context,
     placeName: String
