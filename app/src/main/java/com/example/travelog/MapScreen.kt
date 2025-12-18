@@ -2,6 +2,7 @@ package com.example.travelog
 
 import android.content.Context
 import android.location.Geocoder
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,16 +22,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -43,38 +47,149 @@ data class TripPlan(
     val endDate: LocalDate,
     val destination: String
 )
+
 data class DayPlace(
     val title: String,
     val latLng: LatLng
 )
 
-class TripViewModel : ViewModel() {
+class TripViewModel(
+    private val savedStateHandle: SavedStateHandle
+) : ViewModel() {
+
+    companion object {
+        private const val KEY_TRIP_JSON = "trip_json"
+        private const val KEY_DAYPLACES_JSON = "dayplaces_json"
+    }
+
     var tripPlan by mutableStateOf<TripPlan?>(null)
         private set
+
     /* Day별 장소 목록 */
     val dayPlaces = mutableStateMapOf<Int, MutableList<DayPlace>>()
+
+    init {
+        restoreFromSavedState()
+    }
+
     fun createTrip(start: LocalDate, end: LocalDate, destination: String) {
         tripPlan = TripPlan(start, end, destination)
+
         dayPlaces.clear()
         val days = ChronoUnit.DAYS.between(start, end).toInt() + 1
-        repeat(days) {
-            dayPlaces[it + 1] = mutableListOf()
+        repeat(days) { idx ->
+            dayPlaces[idx + 1] = mutableListOf()
         }
+
+        persistToSavedState()
     }
+
     fun addPlace(day: Int, place: DayPlace) {
         val current = dayPlaces[day] ?: mutableListOf()
         dayPlaces[day] = (current + place).toMutableList()
+        persistToSavedState()
     }
+
     fun totalDays(): Int {
         val t = tripPlan ?: return 0
         return ChronoUnit.DAYS.between(t.startDate, t.endDate).toInt() + 1
+    }
+
+    fun placesByDate(date: LocalDate): List<DayPlace> {
+        val trip = tripPlan ?: return emptyList()
+        val dayIndex = ChronoUnit.DAYS.between(trip.startDate, date).toInt() + 1
+        if (dayIndex < 1 || dayIndex > totalDays()) return emptyList()
+        return dayPlaces[dayIndex] ?: emptyList()
+    }
+
+    private fun persistToSavedState() {
+        // tripPlan
+        val trip = tripPlan
+        if (trip != null) {
+            val obj = JSONObject().apply {
+                put("startDate", trip.startDate.toString()) // ISO-8601
+                put("endDate", trip.endDate.toString())
+                put("destination", trip.destination)
+            }
+            savedStateHandle[KEY_TRIP_JSON] = obj.toString()
+        } else {
+            savedStateHandle.remove<String>(KEY_TRIP_JSON)
+        }
+
+        // dayPlaces
+        val root = JSONObject()
+        dayPlaces.forEach { (day, places) ->
+            val arr = JSONArray()
+            places.forEach { p ->
+                arr.put(
+                    JSONObject().apply {
+                        put("title", p.title)
+                        put("lat", p.latLng.latitude)
+                        put("lng", p.latLng.longitude)
+                    }
+                )
+            }
+            root.put(day.toString(), arr)
+        }
+        savedStateHandle[KEY_DAYPLACES_JSON] = root.toString()
+    }
+
+    private fun restoreFromSavedState() {
+        // tripPlan
+        val tripJson = savedStateHandle.get<String>(KEY_TRIP_JSON)
+        if (!tripJson.isNullOrBlank()) {
+            runCatching {
+                val obj = JSONObject(tripJson)
+                val start = LocalDate.parse(obj.getString("startDate"))
+                val end = LocalDate.parse(obj.getString("endDate"))
+                val dest = obj.getString("destination")
+                tripPlan = TripPlan(start, end, dest)
+            }
+        }
+
+        // dayPlaces
+        val dayJson = savedStateHandle.get<String>(KEY_DAYPLACES_JSON)
+        if (!dayJson.isNullOrBlank()) {
+            runCatching {
+                val root = JSONObject(dayJson)
+                dayPlaces.clear()
+                val keys = root.keys()
+                while (keys.hasNext()) {
+                    val k = keys.next()
+                    val day = k.toInt()
+                    val arr = root.getJSONArray(k)
+                    val list = mutableListOf<DayPlace>()
+                    for (i in 0 until arr.length()) {
+                        val o = arr.getJSONObject(i)
+                        val title = o.getString("title")
+                        val lat = o.getDouble("lat")
+                        val lng = o.getDouble("lng")
+                        list.add(DayPlace(title, LatLng(lat, lng)))
+                    }
+                    dayPlaces[day] = list
+                }
+            }
+        }
+
+        // tripPlan이 있는데 dayPlaces가 비어있으면(복구 중 일부만 성공 등) 기본 day 틀 만들어줌
+        val t = tripPlan
+        if (t != null && dayPlaces.isEmpty()) {
+            val days = ChronoUnit.DAYS.between(t.startDate, t.endDate).toInt() + 1
+            repeat(days) { idx ->
+                dayPlaces[idx + 1] = mutableListOf()
+            }
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(
-    tripViewModel: TripViewModel = viewModel()
+    // ✅ 같은 Activity 범위로 ViewModel을 잡아서 화면 이동/재구성에도 데이터가 덜 날아가게
+    tripViewModel: TripViewModel = run {
+        val owner = (LocalContext.current as ComponentActivity)
+        viewModel(viewModelStoreOwner = owner)
+    }
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -85,9 +200,11 @@ fun MapScreen(
             10f
         )
     }
-    var showTripBottomSheet by remember { mutableStateOf(false) }
-    var showPlaceBottomSheet by remember { mutableStateOf(false) }
-    var selectedDay by remember { mutableStateOf(1) }
+
+    // ✅ UI 상태도 저장(회전/프로세스 재생성 시) - 데이터 “날아감” 체감 줄이기
+    var showTripBottomSheet by rememberSaveable { mutableStateOf(false) }
+    var showPlaceBottomSheet by rememberSaveable { mutableStateOf(false) }
+    var selectedDay by rememberSaveable { mutableStateOf(1) }
 
     val trip = tripViewModel.tripPlan
     val totalDays = tripViewModel.totalDays()
@@ -97,6 +214,13 @@ fun MapScreen(
     LaunchedEffect(trip?.destination) {
         trip?.destination?.let {
             moveMapToCity(context, it, cameraPositionState)
+        }
+    }
+
+    // ✅ trip이 새로 생겼는데 selectedDay가 범위 밖이면 보정
+    LaunchedEffect(trip, totalDays) {
+        if (trip != null && totalDays > 0 && selectedDay !in 1..totalDays) {
+            selectedDay = 1
         }
     }
 
@@ -124,6 +248,7 @@ fun MapScreen(
                 Text("+", fontSize = 20.sp)
             }
         }
+
         Box(
             modifier = Modifier
                 .padding(horizontal = 20.dp)
@@ -145,6 +270,7 @@ fun MapScreen(
                 }
             }
         }
+
         /* Day Buttons */
         if (trip != null) {
             DayButtonRow(
@@ -153,6 +279,7 @@ fun MapScreen(
                 onDayClick = { selectedDay = it }
             )
         }
+
         /* Day Content */
         if (trip != null) {
             Column(
@@ -182,6 +309,7 @@ fun MapScreen(
                     fontSize = 14.sp,
                     color = Color.Gray
                 )
+
                 /* 카드 리스트 */
                 if (placesForDay.isNotEmpty()) {
                     Spacer(Modifier.height(10.dp))
@@ -214,12 +342,12 @@ fun MapScreen(
             }
         )
     }
+
     /* 장소 추가 BottomSheet (이름만 입력) */
     if (showPlaceBottomSheet) {
         PlaceAddBottomSheet(
             onDismiss = { showPlaceBottomSheet = false },
             onSave = { placeName ->
-                // ✅ suspend 함수(addPlaceByName) 호출은 코루틴으로 감싸야 함
                 scope.launch {
                     val added = addPlaceByName(context, placeName)
                     if (added != null) {
@@ -471,6 +599,7 @@ fun millisToLocalDate(millis: Long): LocalDate =
 
 fun LocalDate.toSlashFormat(): String =
     this.format(DateTimeFormatter.ofPattern("yyyy/MM/dd"))
+
 /* 좌표 변환 */
 suspend fun addPlaceByName(
     context: Context,
@@ -488,6 +617,7 @@ suspend fun addPlaceByName(
     }
     return null
 }
+
 suspend fun moveMapToCity(
     context: Context,
     city: String,
