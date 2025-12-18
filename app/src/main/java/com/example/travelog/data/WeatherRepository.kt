@@ -29,7 +29,7 @@ object WeatherRepository {
         }
     }
 
-    /* 시간별 일별 UI 데이터 로드 */
+    // 시간별 일별 UI 데이터 로드
     suspend fun loadHourlyAndDaily(city: String): Pair<List<HourlyWeatherUi>, List<DailyWeatherUi>> {
 
         val forecast = RetrofitClient.weatherApi.getForecast(city, API_KEY)

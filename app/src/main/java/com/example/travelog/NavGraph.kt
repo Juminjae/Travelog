@@ -34,7 +34,7 @@ fun MainNavHost(
         }
         composable(BottomNavItem.Archive.route) {
             ArchiveScreen(
-                navController=navController,
+                navController = navController,
                 onGoPlannedTrips = { navController.navigate("plans") }
             )//아카이브에서 예정된 여행이 눌리면 onGo 호출해서 plan으로 연결
         }
@@ -45,7 +45,12 @@ fun MainNavHost(
             MyPageScreen()
         }
         composable("weather") {
-            WeatherScreen()
+            val parentEntry = remember(navController) {
+                navController.getBackStackEntry("main")
+            }
+            val tripsVm: TripsViewModel = viewModel(parentEntry)
+
+            WeatherScreen(tripsVm = tripsVm)
         }
         composable("checklist") {
             ChecklistScreen()

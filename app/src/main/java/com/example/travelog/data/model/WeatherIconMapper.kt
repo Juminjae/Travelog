@@ -2,10 +2,8 @@ package com.example.travelog.data.model
 
 import com.example.travelog.R
 
-/**
- * OpenWeather icon 코드(예: "01d", "04n")를
- * drawable 리소스 ID로 변환해 주는 함수
- */
+/* OpenWeather icon 코드(예: "01d", "04n")를
+drawable 리소스 ID로 변환해 주는 함수 */
 fun mapWeatherIcon(code: String?): Int? {
     return when (code) {
         "01d", "01n" -> R.drawable.ic_weather_clear

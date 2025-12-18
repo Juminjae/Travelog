@@ -20,8 +20,8 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun BottomBar(
-    currentRoute: String?,                     // ✅ 현재 NavHost의 route
-    onItemSelected: (BottomNavItem) -> Unit   // ✅ 눌렀을 때 이동 처리
+    currentRoute: String?,
+    onItemSelected: (BottomNavItem) -> Unit   // 눌렀을 때 이동 처리
 ) {
     val items = listOf(
         BottomNavItem.Home,

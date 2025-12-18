@@ -3,7 +3,6 @@ package com.example.travelog
 import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -20,15 +19,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -50,41 +47,78 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import com.example.travelog.data.network.RetrofitClient
 import com.example.travelog.data.WeatherRepository
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 
 @Composable
+// 날씨 화면
 fun WeatherScreen(
+    // 여행(추가한 여행들) 목록을 가져오기 위함
+    tripsVm: TripsViewModel,
     weatherViewModel: WeatherViewModel = viewModel()
 ) {
-    // ViewModel 상태 읽기
-    var temperature = weatherViewModel.temperature
-    var iconCode = weatherViewModel.iconCode
-    var hourlyList = weatherViewModel.hourlyList
-    var dailyList = weatherViewModel.dailyList
-    var errorMessage = weatherViewModel.errorMessage
-    var isLoading = weatherViewModel.isLoading
 
+    // 화면에서 사용될 상태 선언
+    var temperature by remember { mutableStateOf<String?>(null) }
+    var iconCode by remember { mutableStateOf<String?>(null) }
+    var hourlyList by remember { mutableStateOf<List<HourlyWeatherUi>>(emptyList()) }
+    var dailyList by remember { mutableStateOf<List<DailyWeatherUi>>(emptyList()) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // 기본 시간대 가져오기
+    // remember 사용해서 리컴포지션 때마다 매번 새로 만들지 않게
+    val zone = remember { ZoneId.systemDefault() }
+
+    // 출국일이 가장 가까운 여행 계산
+    val nearestTrip by remember(zone, tripsVm.trips) {
+        derivedStateOf {
+            val today = LocalDate.now()
+            tripsVm.trips
+                .map { trip ->
+                    val targetDate = Instant.ofEpochMilli(trip.targetDateMillis)
+                        .atZone(zone).toLocalDate()
+                    trip to ChronoUnit.DAYS.between(today, targetDate).toInt()
+                }
+                .filter { (_, diff) -> diff >= 0 }
+                .minByOrNull { (_, diff) -> diff }
+        }
+    }
+
+    // 여행지 탭에 넣은 API 관련 이름
+    val myTripApi = nearestTrip?.first?.country?.let { toWeatherQuery(it) } ?: "Seoul,kr"
+    val myTripDisplay = nearestTrip?.first?.country ?: "서울"
+
+    // 각 탭을 Triple(탭이름, apiCity, 화면표시이름) 형태로 저장
     val tabCities = listOf(
-        Triple("내 여행지", "Sapporo,jp", "삿포로"),
+        Triple("내 여행지", myTripApi, myTripDisplay),
+        Triple("서울", "Seoul,kr", "서울"),
         Triple("일본", "Tokyo,jp", "도쿄"),
         Triple("영국", "London,gb", "런던"),
         Triple("미국", "New York,us", "뉴욕"),
         Triple("중국", "Shanghai,cn", "상하이")
     )
 
+    // 현재 선택된 탭, API 도시 상태 (초기값 0)
     var selectedTab by remember { mutableStateOf(0) }
     var apiCity by remember { mutableStateOf(tabCities[selectedTab].second) }
 
+    // 탭이 바뀌면 apiCity도 바꾸기
     LaunchedEffect(selectedTab) {
         apiCity = tabCities[selectedTab].second
     }
 
-    // 홈을 안 거치고 바로 들어온 경우 대비해서 한 번 로드
+    // apiCity가 바뀌면 날씨를 로드
     LaunchedEffect(apiCity) {
         try {
+            // 이전 사용 에러 초기화
             errorMessage = null
 
+            // 빌드 설정에 저장된 API Key 사용
             val apiKey = BuildConfig.WEATHER_API_KEY
 
+            // 현재 날씨 호출
             val response = RetrofitClient.weatherApi.getCurrentWeather(
                 city = apiCity,
                 apiKey = apiKey
@@ -97,7 +131,7 @@ fun WeatherScreen(
             hourlyList = hourly
             dailyList = daily
 
-        } catch (e: Exception) {
+        } catch (e: Exception) { // 네트워크 에러 시 에러메시지 세팅
             e.printStackTrace()
             errorMessage = e.message ?: "날씨 정보를 불러오지 못했습니다."
         }
@@ -160,18 +194,20 @@ fun WeatherScreen(
             modifier = Modifier
                 .fillMaxWidth()
         ) {
+            // WeatherCountryTabs 호출
             WeatherCountryTabs(
+                // .first만 뽑아서 탭에 표시할 텍스트 목록을 만들기
                 tabs = tabCities.map { it.first },
                 selectedTab = selectedTab,
                 onSelect = { index ->
                     selectedTab = index
-                    val api   = tabCities[index].second  // "Sapporo,jp" ...
-                    val displayCity = tabCities[index].third
-                    weatherViewModel.load(apiCity = api, display = displayCity)
+                    apiCity = tabCities[index].second
+                    weatherViewModel.displayCityName = tabCities[index].third
                 }
             )
         }
 
+        // 탭 및 구분선
         Box(
             modifier = Modifier
                 .offset(x = 0.dp, y = (-10).dp)
@@ -198,8 +234,10 @@ fun WeatherScreen(
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
 
+                // 화면에 표시할 도시 이름
                 val displayName = weatherViewModel.displayCityName
 
+                // 도시명 출력
                 Text(
                     text = displayName,
                     fontSize = 24.sp,
@@ -208,8 +246,10 @@ fun WeatherScreen(
 
                 Spacer(modifier = Modifier.height(5.dp))
 
-                // 날씨 아이콘
+                // 날씨 아이콘 리소스 매핑 + 출력
+                // API에서 받은 문자열 코드
                 val iconRes: Int? = iconCode?.let { mapWeatherIcon(it) }
+
                 if (iconRes != null) {
                     Icon(
                         painter = painterResource(id = iconRes),
@@ -228,6 +268,7 @@ fun WeatherScreen(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 when {
+                    // 로딩 중일 때
                     temperature == null && errorMessage == null -> {
                         Text(
                             text = "날씨 불러오는 중...",
@@ -235,6 +276,7 @@ fun WeatherScreen(
                             color = Color.Gray
                         )
                     }
+                    // 에러 발생 시
                     errorMessage != null -> {
                         Text(
                             text = errorMessage!!,
@@ -242,6 +284,7 @@ fun WeatherScreen(
                             color = Color.Red
                         )
                     }
+                    // 날씨를 정상적으로 받았을 때
                     else -> {
                         Text(
                             text = temperature ?: "0°C",
@@ -255,17 +298,32 @@ fun WeatherScreen(
 
         Spacer(modifier = Modifier.height(40.dp))
 
-        // 오늘의 날씨 카드 (시간별)
+        // 오늘의 날씨 카드 (시간별) 호출
         TodayHourlyWeatherCard(items = hourlyList)
 
         Spacer(modifier = Modifier.height(25.dp))
 
-        // 요일별 날씨 카드
+        // 요일별 날씨 카드 호출
         WeeklyWeatherCard(items = dailyList)
     }
 }
 
+// 여행지(나라/도시 이름) → 날씨 API에서 사용하는 도시 쿼리 문자열
+private fun toWeatherQuery(countryOrCity: String): String {
+    val s = countryOrCity.trim().lowercase()
+    return when {
+        listOf("한국", "seoul").any { s.contains(it) } -> "Seoul,kr"
+        listOf("삿포로", "sapporo").any { s.contains(it) } -> "Sapporo,jp"
+        listOf("도쿄", "tokyo").any { s.contains(it) } -> "Tokyo,jp"
+        listOf("런던", "london").any { s.contains(it) } -> "London,gb"
+        listOf("뉴욕", "new york", "nyc").any { s.contains(it) } -> "New York,us"
+        listOf("상하이", "shanghai").any { s.contains(it) } -> "Shanghai,cn"
+        else -> "Seoul,kr" // 매핑 실패하면 서울
+    }
+}
+
 @Composable
+// 날씨 상단 탭 UI
 fun WeatherCountryTabs(
     tabs: List<String>,
     selectedTab: Int,
@@ -277,6 +335,7 @@ fun WeatherCountryTabs(
             .padding(horizontal = 20.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // 탭 목록 반복 렌더링
         tabs.forEachIndexed { index, title ->
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -286,13 +345,14 @@ fun WeatherCountryTabs(
             ) {
                 Text(
                     text = title,
-                    fontSize = 16.sp,
+                    fontSize = 14.sp,
                     fontWeight = if (selectedTab == index) FontWeight.ExtraBold else FontWeight.Normal,
                     color = if (selectedTab == index) Color.Black else Color.Gray
                 )
 
                 Spacer(modifier = Modifier.height(3.dp))
 
+                // 선택된 탭만 하단 인디케이터 표시
                 if (selectedTab == index) {
                     Box(
                         modifier = Modifier
@@ -315,6 +375,7 @@ fun WeatherCountryTabs(
 }
 
 @Composable
+// 오늘 날씨 시간대별 카드
 fun TodayHourlyWeatherCard(
     items: List<HourlyWeatherUi>
 ) {
@@ -343,16 +404,20 @@ fun TodayHourlyWeatherCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // 시간별 날씨 리스트 (스크롤 가능)
             LazyRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // 시간별 날씨 아이템 반복 렌더링
                 items(items) { item ->
+                    // 개별 시간 카드
                     Column(
                         modifier = Modifier.width(30.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        // 시간 표시
                         Text(
                             text = item.label,
                             fontSize = 11.sp,
@@ -361,7 +426,9 @@ fun TodayHourlyWeatherCard(
 
                         Spacer(modifier = Modifier.height(4.dp))
 
+                        // 날씨 아이콘 불러오기 + 표시
                         val iconRes = mapWeatherIcon(item.iconCode) ?: R.drawable.icon_sun_small
+
                         Icon(
                             painter = painterResource(id = iconRes),
                             contentDescription = null,
@@ -371,6 +438,7 @@ fun TodayHourlyWeatherCard(
 
                         Spacer(modifier = Modifier.height(4.dp))
 
+                        // 온도
                         Text(
                             text = item.tempText,
                             fontSize = 11.sp,
@@ -385,15 +453,18 @@ fun TodayHourlyWeatherCard(
     }
 }
 
+// 최저 - 최고 기온 범위 막대로 표시
 private fun String.toTempInt(): Int {
     val num = Regex("-?\\d+").find(this)?.value ?: "0"
     return num.toInt()
 }
 
 @Composable
+// 주간 날씨 카드
 fun WeeklyWeatherCard(
     items: List<DailyWeatherUi>
 ) {
+    // 한 주의 최저 최고 온도 계산
     val weekMin = items.minOfOrNull { it.minTempText.toTempInt() } ?: 0
     val weekMax = items.maxOfOrNull { it.maxTempText.toTempInt() } ?: 0
 
@@ -417,6 +488,7 @@ fun WeeklyWeatherCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // 요일 별 행 반복 렌더링
             items.forEachIndexed { index, item ->
                 DayRow(
                     dayLabel = item.dayLabel,
@@ -434,7 +506,6 @@ fun WeeklyWeatherCard(
     }
 }
 
-@SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 private fun DayRow(
     dayLabel: String,
@@ -444,6 +515,7 @@ private fun DayRow(
     weekMin: Int,
     weekMax: Int
 ) {
+    // 해당 요일의 최저/최고 숫자 변환
     val dayMin = minTemp.toTempInt()
     val dayMax = maxTemp.toTempInt()
 
@@ -491,22 +563,22 @@ private fun DayRow(
 
         Spacer(modifier = Modifier.width(10.dp))
 
-    // ✅ 바는 남은 공간을 다 쓰게 weight(1f)만 여기 한 번 사용
+        // 가운데 온도 범위 막대
         BoxWithConstraints(
             modifier = Modifier
                 .weight(1f)
-                .height(6.dp)   // 날씨앱처럼 얇게(원하면 8.dp로)
+                .height(6.dp)
         ) {
             val trackShape = RoundedCornerShape(999.dp)
 
-            // 전체 트랙(회색)
+            // 전체 트랙
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color(0xFFD6D6D6), trackShape)
             )
 
-            // 그날 범위(파란색): 시작 위치 + 길이
+            // 그날 범위
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
