@@ -19,7 +19,6 @@ class WeatherViewModel : ViewModel() {
 
     // 🔹 화면에 보여 줄 도시 이름 (예: "삿포로")
     var displayCityName by mutableStateOf("삿포로")
-        private set
 
     var temperature by mutableStateOf<String?>(null)
         private set
@@ -39,12 +38,9 @@ class WeatherViewModel : ViewModel() {
     var isLoading by mutableStateOf(false)
         private set
 
-    /**
-     * 도시 변경 + 날씨 로드
-     *
-     * @param apiCity   OpenWeather API에 보낼 도시 (예: "Sapporo,jp")
-     * @param display   화면에 보여 줄 이름 (예: "삿포로")
-     */
+    /* 도시 변경 + 날씨 로드
+     apiCity   OpenWeather API에 보낼 도시 (예: "Sapporo,jp")
+     display   화면에 보여 줄 이름 (예: "삿포로") */
     fun load(apiCity: String = apiCityName, display: String = displayCityName) {
         apiCityName = apiCity
         displayCityName = display

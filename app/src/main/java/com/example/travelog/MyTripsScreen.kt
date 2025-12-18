@@ -33,11 +33,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
-import androidx.navigation.compose.rememberNavController
 
-// ------------------------------
-// 모델 (위 코드 유지)
-// ------------------------------
 data class Trip(
     val id: String,
     val countryEmoji: String,
@@ -68,9 +64,7 @@ fun coverResForCountry(input: String): Int? {
     }
 }
 
-// ------------------------------
-// ✅ TravelApp: (아래 코드 로직 적용) vm + rememberSaveable 라우팅
-// ------------------------------
+
 @Composable
 fun TravelApp(vm: TripsViewModel = viewModel()) {
     MaterialTheme(colorScheme = lightColorScheme()) {
@@ -80,7 +74,7 @@ fun TravelApp(vm: TripsViewModel = viewModel()) {
 
         when (route) {
             "list" -> MyTripsScreen(
-                trips = vm.trips,   // ✅ 위 코드의 trips state 대신 vm.trips 사용
+                trips = vm.trips,
                 onGoBudget = { trip ->
                     selectedTripId = trip.id
                     route = "budget"
@@ -92,17 +86,9 @@ fun TravelApp(vm: TripsViewModel = viewModel()) {
                     vm.addMember(tripId, name)
                 },
                 onCreateTrip = { country, dateMillis ->
-                    vm.addTrip(country, dateMillis) // ✅ “만들기(+버튼)”에서만 vm 적용 핵심
+                    vm.addTrip(country, dateMillis)
                 }
             )
-
-            "archive" -> {
-                ArchiveScreen(
-                    navController = navController,
-                    cityList = listOf("빈", "런던", "삿포로"),
-                    onGoPlannedTrips = { route = "list" }
-                )
-            }
 
             "budget" -> {
                 val selectedTrip = vm.findTrip(selectedTripId)
@@ -121,19 +107,17 @@ fun TravelApp(vm: TripsViewModel = viewModel()) {
     }
 }
 
-// ------------------------------
-// 화면 1: 내 여행 리스트 (+ 버튼으로 여행 생성)
-// ✅ UI 템플릿은 “맨 위 코드” 그대로 유지
-// ------------------------------
+
+// 내 여행 리스트
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyTripsScreen(
     trips: List<Trip>,
-    onGoArchive: () -> Unit,
     onGoBudget: (Trip) -> Unit,
     onChangeDate: (String, Long) -> Unit,
     onAddMember: (String, String) -> Unit,
     onCreateTrip: (country: String, dateMillis: Long) -> String,
+    onGoPlannedTrips: () -> Unit = {}
 ) {
     var showCreateTrip by remember { mutableStateOf(false) }
 
@@ -152,7 +136,7 @@ fun MyTripsScreen(
         initialSelectedDateMillis = createDateMillis
     )
 
-// createDateMillis가 바뀌면 DatePickerState도 따라가게
+
     LaunchedEffect(createDateMillis) {
         createDatePickerState.selectedDateMillis = createDateMillis
     }
@@ -197,7 +181,6 @@ fun MyTripsScreen(
                 TextButton(onClick = {
                     val country = createCountry.trim()
                     if (country.isNotEmpty()) {
-                        // ✅ 여기서만 “아래 코드(vm)” 방식으로 실제 저장
                         val newId = onCreateTrip(country, createDateMillis)
                         pendingAddMemberTripId = newId
                         showAddMemberPopup = true
@@ -252,7 +235,7 @@ fun MyTripsScreen(
         )
     }
 
-    // ✅ 위 코드 템플릿(상단 Row + 아이콘 + TabRowLike + 리스트 + 맨 아래 + 카드) 유지
+
     Scaffold( containerColor = Color.White ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -260,7 +243,7 @@ fun MyTripsScreen(
                 .fillMaxSize()
         ) {
 
-            // (위 코드에 있던 상단 Row 1개만 남김 — 중복이었음)
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -294,17 +277,27 @@ fun MyTripsScreen(
                 )
             }
 
-            TabRowLike(
-                tabs = listOf("예정된 여행", "지난 여행"),
-                selected = 0,
-                onSelect = { index ->
-                    if (index == 1) {
-                        onGoArchive()
+//            TabRowLike(
+//                tabs = listOf("예정된 여행", "지난 여행"),
+//                selected = 0
+//            )
+
+            Spacer(Modifier.height(8.dp))
+
+            val selectedTabIndex = 0
+
+            TripsTabs(
+                selectedTabIndex = selectedTabIndex,
+                onSelectTab = { index ->
+                    if (index == 0) { //0=예정된 여행, 1=지난여행
+                        index == 0
                     }
                 }
             )
 
-            Spacer(Modifier.height(8.dp))
+            HorizontalDivider(thickness = 1.dp, color = Color(0xFFE5E7EB))
+
+            Spacer(modifier = Modifier.height(14.dp))
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -327,7 +320,7 @@ fun MyTripsScreen(
 }
 
 @Composable
-private fun TabRowLike(tabs: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+private fun TabRowLike(tabs: List<String>, selected: Int) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -339,8 +332,7 @@ private fun TabRowLike(tabs: List<String>, selected: Int, onSelect: (Int) -> Uni
                 text = title,
                 modifier = Modifier
                     .padding(end = 16.dp)
-                    .padding(vertical = 8.dp)
-                    .clickable{ onSelect(index) },
+                    .padding(vertical = 8.dp),
                 fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
                 color = if (active) Color.Black else Color(0xFF777777)
             )
@@ -367,7 +359,7 @@ private fun TripCard(
         initialSelectedDateMillis = trip.targetDateMillis
     )
 
-// trip의 날짜가 바뀌면 DatePickerState도 따라가게
+
     LaunchedEffect(trip.targetDateMillis) {
         datePickerState.selectedDateMillis = trip.targetDateMillis
     }
@@ -595,5 +587,56 @@ private fun PreviewMyTrips() {
             onAddMember = { _, _ -> },
             onCreateTrip = { _, _ -> "temp" }
         )
+    }
+}
+
+@Composable
+private fun TripsTabs(
+    selectedTabIndex: Int,
+    onSelectTab: (Int) -> Unit,
+) {
+    val tabs = listOf("예정된 여행", "지난 여행")
+
+    val indicatorHeight = 8.dp
+    val indicatorWidth = 22.dp
+    val corner = 5.dp
+
+    ScrollableTabRow(
+        selectedTabIndex = selectedTabIndex,
+        edgePadding = 0.dp,
+        containerColor = Color.White,
+        divider = {},
+        indicator = { tabPositions ->
+            val current = tabPositions[selectedTabIndex]
+            val offsetX = current.left + (current.width - indicatorWidth) / 2
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentSize(Alignment.BottomStart)
+                    .offset(x = offsetX)
+                    .width(indicatorWidth)
+                    .height(indicatorHeight)
+                    .clip(RoundedCornerShape(topStart = corner, topEnd = corner))
+                    .background(Color.Black)
+            )
+        },
+    ) {
+        tabs.forEachIndexed { index, title ->
+            Tab(
+                selected = selectedTabIndex == index,
+                onClick = {
+                    if (selectedTabIndex != index) onSelectTab(index)
+                },
+                text = {
+                    Text(
+                        text = title,
+                        fontSize = 16.sp,
+                        fontWeight = if (selectedTabIndex == index) FontWeight.ExtraBold else FontWeight.Normal,
+                        color = if (selectedTabIndex == index) Color.Black else Color.Gray
+                    )
+                }
+            )
+        }
     }
 }
