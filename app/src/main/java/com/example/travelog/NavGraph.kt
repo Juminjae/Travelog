@@ -36,7 +36,7 @@ fun MainNavHost(
             ArchiveScreen(
                 navController=navController,
                 onGoPlannedTrips = { navController.navigate("plans") }
-            )
+            )//아카이브에서 예정된 여행이 눌리면 onGo 호출해서 plan으로 연결
         }
         composable(BottomNavItem.Schedule.route) {
             ScheduleScreen()

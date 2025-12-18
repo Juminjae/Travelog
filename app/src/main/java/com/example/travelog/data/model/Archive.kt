@@ -2,6 +2,9 @@ package com.example.travelog.data.model
 
 import com.google.firebase.firestore.DocumentId
 
+//아카이브에서 쓰는 데이터 구조 정의 - data class
+//@DocumentId는 파이어베이스 염두에 두고 선언했는데 파이어베이스 포기..
+
 //지난 여행 - 도시
 data class ArchivedTrip(
     @DocumentId val tripId: String = "",
@@ -31,7 +34,3 @@ data class PhotoComment(
 )
 
 
-data class ArchiveAlbum(
-    val trip: ArchivedTrip = ArchivedTrip(),
-    val photos: List<ArchivePhoto> = emptyList(),
-)

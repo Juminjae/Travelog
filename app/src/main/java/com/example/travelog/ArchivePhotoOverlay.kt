@@ -40,56 +40,66 @@ import android.widget.ImageView
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import java.io.File
 import android.util.Log
 
-//오버레이
+//사진 오버레이(확대 보기), 댓글 영역
+//배경(어두운 영역) 터치 or X 버튼 → 닫기(onDismiss)
+//댓글은 최대 높이 안에서 스크롤, 댓글 추가시 최근 댓글로 스크롤
+//실제 댓글 추가/저장은 ViewModel에서 관리
+//아카이브스크린에서 호출
 @Composable
 fun ArchivePhotoOverlay(
-    visible: Boolean,
-    photoUri: String?,
-    comments: List<ArchiveCommentEntity>,
+    visible: Boolean, //오버레이 띄울지 말지
+    photoUri: String?, //그리드에서 선택 안 했거나, 실패했을때 고려
+    comments: List<ArchiveCommentEntity>, //ArchivePhotoEntity에서 엔티티 정의
     inputText: String,
-    onInputTextChange: (String) -> Unit,
+    onInputTextChange: (String) -> Unit, //오버레이에 상태 저장이 아닌 vm에서 끌어올 예정
     onSend: () -> Unit,
-    onDismiss: () -> Unit,
+    onDismiss: () -> Unit, //오버레이 닫기
     modifier: Modifier = Modifier,
 ) {
     if (!visible) return
 
-    //전체 화면 오버레이
+    //ui상수
+    val overlayAlpha = 0.55f
+    val cardCorner = 18.dp
+    val photoHeight = 420.dp
+    val commentsBoxHeight = 160.dp
+
+    // 1. 오버레이 바깥 어둡게 그리고 가운데에 카드 위치
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.55f))
+            .background(Color.Black.copy(alpha = overlayAlpha))//바깥
             // 바깥 영역 터치 시 닫기
             .clickable(
-                indication = null,
+                indication = null, //눌렀을때 물결 해결
                 interactionSource = remember { MutableInteractionSource() },
                 onClick = onDismiss
             )
     ) {
-        //사진
+        //사진 카드
         Card(
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(cardCorner),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             modifier = Modifier
                 .align(Alignment.Center)
-                .padding(horizontal = 18.dp)
+                .padding(horizontal = cardCorner)
                 .fillMaxWidth()
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() },
-                    onClick = { /* consume */ }
+                    onClick = {/* 클릭해도 아무 일 x */}
                 )
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
+                //2. 사진 영역 (우상단 X 포함)
 
                 // 사진, x버튼
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(420.dp)
+                        .height(photoHeight)
                         .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
                 ) {
                     if (photoUri != null) {
@@ -102,28 +112,15 @@ fun ArchivePhotoOverlay(
                                 }
                             },
                             update = { iv ->
-                                try {
-                                    // photoUri가 내부저장소 absolute path("/data/user/0/..." 등)라면 File URI로 변환
-                                    val uri = when {
-                                        photoUri.startsWith("/") -> Uri.fromFile(File(photoUri))
-                                        else -> Uri.parse(photoUri)
-                                    }
+                                try { //uri 깨져도 앱 꺼지지 않게
+                                    // photoUri는 에뮬에서 업로드한 주소
+                                    val uri = Uri.parse(photoUri)
                                     iv.setImageURI(uri)
-                                } catch (se: SecurityException) {
-                                    // Photo Picker 임시 URI는 재실행 시 권한이 사라질 수 있음 → 크래시 대신 placeholder로
-                                    Log.w("ArchivePhotoOverlay", "No permission to open uri=$photoUri", se)
-                                    iv.setImageDrawable(null)
                                 } catch (t: Throwable) {
-                                    Log.w("ArchivePhotoOverlay", "Failed to load uri=$photoUri", t)
+                                    Log.w("ArchivePhotoOverlay", "Failed to load photo uri", t)
                                     iv.setImageDrawable(null)
                                 }
                             }
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.LightGray)
                         )
                     }
 
@@ -144,11 +141,11 @@ fun ArchivePhotoOverlay(
                     }
                 }
 
-                // 댓글 목록
-                val commentsBoxHeight = 160.dp
-                val listState = rememberLazyListState()
+                //3. 댓글(새 댓글 달리면 자동 스크롤)
+                val listState = rememberLazyListState() //스크롤 위치 제어하기 위한 상태
 
-                LaunchedEffect(comments.size) {
+                //자동 스크롤
+                LaunchedEffect(comments.size) { //댓글 개수 바뀔때
                     if (comments.isNotEmpty()) {
                         listState.animateScrollToItem(comments.lastIndex)
                     }
@@ -158,7 +155,7 @@ fun ArchivePhotoOverlay(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 12.dp)
-                        .height(commentsBoxHeight)
+                        .height(commentsBoxHeight) //댓글 늘어나도 오버레이 크기 고정
                 ) {
                     LazyColumn(
                         state = listState,
@@ -189,13 +186,13 @@ fun ArchivePhotoOverlay(
                     }
                 }
 
-                // 댓글 입력
+                //4. 댓글 입력 + 전송 버튼
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 14.dp, end = 10.dp, bottom = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
-                ) {
+                ) { //텍스트를 오버레이에 저장이 아닌 밖에서 내려받기
                     OutlinedTextField(
                         value = inputText,
                         onValueChange = onInputTextChange,
